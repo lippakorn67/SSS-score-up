@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Post an item — Swap, Share, Sustain</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♻️%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-head" style="text-align:center">
+      <span class="eyebrow">give it a second life</span>
+      <h1>Post an item</h1>
+      <p class="page-sub">Describe it honestly — the next owner is someone you'll see in the hallway.</p>
+    </div>
+
+    <div class="form-card form-card-wide">
+      <form id="upload-form">
+        <div class="field">
+          <label for="photo">Photo <span style="font-weight:400;color:var(--ink-soft)">(optional, but items with photos get picked faster)</span></label>
+          <input id="photo" type="file" accept="image/*" hidden>
+          <div id="photo-zone">
+            <label class="photo-drop" for="photo">
+              <span style="font-size:2rem">📷</span>
+              <span>Choose a photo</span>
+            </label>
+          </div>
+          <p class="hint">The photo is stored in your browser — this demo keeps everything on your device.</p>
+        </div>
+
+        <div class="field">
+          <label for="title">What is it?</label>
+          <input id="title" placeholder="e.g. IGCSE Maths textbook, 4th edition" maxlength="80" required>
+        </div>
+
+        <div class="field">
+          <label for="category">Category</label>
+          <select id="category" required>
+            <option value="" disabled selected>Choose a category</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="condition">Condition</label>
+          <select id="condition" required>
+            <option value="" disabled selected>How well has it survived?</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="description">Description</label>
+          <textarea id="description" maxlength="600" placeholder="Size, edition, what's included, anything a swapper should know…"></textarea>
+        </div>
+
+        <p class="form-error" id="upload-error" role="alert"></p>
+        <button class="btn form-full" type="submit">Post item</button>
+      </form>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    UI.header('upload');
+    UI.footer();
+
+    if (UI.requireLogin()) {
+      const catSelect = document.getElementById('category');
+      SSS.CATEGORIES.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.emoji + ' ' + c.label;
+        catSelect.appendChild(opt);
+      });
+
+      const condSelect = document.getElementById('condition');
+      SSS.CONDITIONS.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        condSelect.appendChild(opt);
+      });
+
+      let photoData = null;
+      const photoInput = document.getElementById('photo');
+      const photoZone = document.getElementById('photo-zone');
+
+      function resetPhotoZone() {
+        photoData = null;
+        photoInput.value = '';
+        photoZone.innerHTML = `
+          <label class="photo-drop" for="photo">
+            <span style="font-size:2rem">📷</span>
+            <span>Choose a photo</span>
+          </label>`;
+      }
+
+      photoInput.addEventListener('change', async () => {
+        const file = photoInput.files[0];
+        if (!file) return;
+        try {
+          photoData = await UI.fileToDataURL(file);
+          photoZone.innerHTML = `
+            <div class="photo-preview"><img src="${photoData}" alt="Photo of your item"></div>
+            <button class="btn btn-outline btn-small" type="button" id="remove-photo" style="margin-top:10px">Remove photo</button>`;
+          document.getElementById('remove-photo').addEventListener('click', resetPhotoZone);
+        } catch (err) {
+          UI.toast(err.message, false);
+          resetPhotoZone();
+        }
+      });
+
+      document.getElementById('upload-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const r = SSS.addItem({
+          title: document.getElementById('title').value,
+          category: document.getElementById('category').value,
+          condition: document.getElementById('condition').value,
+          description: document.getElementById('description').value,
+          image: photoData
+        });
+        if (r.ok) {
+          location.href = 'item.html?id=' + encodeURIComponent(r.item.id) + '&posted=1';
+        } else {
+          document.getElementById('upload-error').textContent = r.error;
+        }
+      });
+    }
+  </script>
+</body>
+</html>

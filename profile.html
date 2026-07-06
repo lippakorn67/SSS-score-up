@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your profile — Swap, Share, Sustain</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♻️%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div class="profile-head">
+      <div class="profile-card" id="profile-card"></div>
+    </div>
+
+    <section class="profile-section">
+      <h2>Your items <span class="count-note" id="items-note"></span></h2>
+      <div id="my-items"></div>
+    </section>
+
+    <section class="profile-section">
+      <h2>Requests for your items <span class="count-note" id="incoming-note"></span></h2>
+      <div id="incoming"></div>
+    </section>
+
+    <section class="profile-section">
+      <h2>Requests you've sent <span class="count-note" id="sent-note"></span></h2>
+      <div id="sent"></div>
+    </section>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    UI.header('profile');
+    UI.footer();
+
+    function statusBadge(status) {
+      const label = { pending: 'Pending', accepted: 'Accepted', declined: 'Declined', cancelled: 'Cancelled' }[status] || status;
+      return `<span class="badge badge-${status}">${label}</span>`;
+    }
+
+    function itemThumb(item) {
+      if (!item) return `<div class="row-thumb ph">❓</div>`;
+      const cat = UI.catInfo(item.category);
+      return item.image
+        ? `<img class="row-thumb" src="${item.image}" alt="">`
+        : `<div class="row-thumb ph ph-${cat.id}">${cat.emoji}</div>`;
+    }
+
+    function itemLink(item) {
+      return item
+        ? `<a href="item.html?id=${encodeURIComponent(item.id)}">${UI.esc(item.title)}</a>`
+        : '<em>an item that was removed</em>';
+    }
+
+    function contactBox(user, lead) {
+      if (!user) return '';
+      return `<div class="contact-box">
+        <p class="hand">${UI.esc(lead)}</p>
+        <p><strong>${UI.esc(user.name)}</strong> · ${UI.esc(user.grade)} · school number <strong>${UI.esc(user.schoolNumber)}</strong></p>
+        <p style="color:var(--ink-soft);font-size:.9rem;margin:0">Agree on a time and place at school, check the items together, then swap.</p>
+      </div>`;
+    }
+
+    function render() {
+      const me = SSS.currentUser();
+
+      document.getElementById('profile-card').innerHTML = `
+        <div class="avatar">${UI.esc(me.name.charAt(0).toUpperCase())}</div>
+        <div class="profile-info">
+          <h1>${UI.esc(me.name)}</h1>
+          <p class="profile-meta" style="margin:0">${UI.esc(me.grade)} · school number ${UI.esc(me.schoolNumber)} · joined ${UI.timeAgo(me.joinedAt)}</p>
+        </div>
+        <button class="btn btn-outline btn-small" id="logout-btn">Log out</button>`;
+      document.getElementById('logout-btn').addEventListener('click', () => {
+        SSS.logOut();
+        location.href = 'index.html';
+      });
+
+      /* ----- my items ----- */
+      const mine = SSS.listItems({ ownerId: me.id, includeSwapped: true });
+      document.getElementById('items-note').textContent =
+        mine.length === 0 ? '' : '(' + mine.length + ')';
+      document.getElementById('my-items').innerHTML = mine.length === 0
+        ? `<div class="empty"><p><strong>Your shelf is empty here.</strong></p><p><a href="upload.html">Post your first item</a> — it takes about a minute.</p></div>`
+        : mine.map(item => `
+            <div class="row-item">
+              ${itemThumb(item)}
+              <div class="row-body">
+                ${itemLink(item)}
+                <div class="row-sub">${UI.esc(item.condition)} · posted ${UI.timeAgo(item.createdAt)}</div>
+              </div>
+              <span class="badge badge-${item.status}">${item.status === 'available' ? 'Available' : 'Swapped'}</span>
+              ${item.status === 'available' ? `<div class="row-actions"><button class="btn btn-danger btn-small" data-remove="${UI.esc(item.id)}">Remove</button></div>` : ''}
+            </div>`).join('') +
+          `<p style="margin-top:14px"><a class="btn btn-small" href="upload.html">+ Post another item</a></p>`;
+
+      document.querySelectorAll('[data-remove]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (!confirm('Remove this item from the board? This can\'t be undone.')) return;
+          const r = SSS.removeItem(btn.dataset.remove);
+          if (r.ok) { UI.toast('Item removed.'); render(); }
+          else UI.toast(r.error, false);
+        });
+      });
+
+      /* ----- incoming requests ----- */
+      const incoming = SSS.requestsForOwner(me.id);
+      document.getElementById('incoming-note').textContent =
+        incoming.length === 0 ? '' : '(' + incoming.filter(r => r.status === 'pending').length + ' waiting)';
+      document.getElementById('incoming').innerHTML = incoming.length === 0
+        ? `<div class="empty"><p><strong>No requests yet.</strong></p><p>When someone wants one of your items, it shows up here.</p></div>`
+        : incoming.map(req => {
+            const item = SSS.getItem(req.itemId);
+            const from = SSS.getUser(req.fromUserId);
+            const offered = req.offeredItemId ? SSS.getItem(req.offeredItemId) : null;
+            return `
+              <div class="req">
+                <div class="req-head">
+                  <div>
+                    <div class="req-title">${UI.esc(from ? from.name : 'A student')} wants ${itemLink(item)}</div>
+                    <p class="req-sub">${UI.esc(from ? from.grade : '')} · ${UI.timeAgo(req.createdAt)} · offers: ${offered ? itemLink(offered) : '<em>nothing — just asking</em>'}</p>
+                  </div>
+                  ${statusBadge(req.status)}
+                </div>
+                ${req.message ? `<p class="req-msg"><span class="hand-label">they wrote:</span>${UI.esc(req.message)}</p>` : ''}
+                ${req.status === 'pending' ? `
+                  <div class="req-actions">
+                    <button class="btn btn-small" data-accept="${UI.esc(req.id)}">Accept swap</button>
+                    <button class="btn btn-outline btn-small" data-decline="${UI.esc(req.id)}">Decline</button>
+                  </div>` : ''}
+                ${req.status === 'accepted' ? contactBox(from, 'time to meet up! →') : ''}
+              </div>`;
+          }).join('');
+
+      document.querySelectorAll('[data-accept]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const r = SSS.acceptRequest(btn.dataset.accept);
+          if (r.ok) { UI.toast('Swap accepted — arrange the exchange at school! 🎉'); render(); }
+          else UI.toast(r.error, false);
+        });
+      });
+      document.querySelectorAll('[data-decline]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const r = SSS.declineRequest(btn.dataset.decline);
+          if (r.ok) { UI.toast('Request declined.'); render(); }
+          else UI.toast(r.error, false);
+        });
+      });
+
+      /* ----- sent requests ----- */
+      const sent = SSS.requestsFrom(me.id);
+      document.getElementById('sent-note').textContent =
+        sent.length === 0 ? '' : '(' + sent.length + ')';
+      document.getElementById('sent').innerHTML = sent.length === 0
+        ? `<div class="empty"><p><strong>You haven't asked for anything yet.</strong></p><p><a href="browse.html">Browse the board</a> and see what you need.</p></div>`
+        : sent.map(req => {
+            const item = SSS.getItem(req.itemId);
+            const owner = item ? SSS.getUser(item.ownerId) : null;
+            const offered = req.offeredItemId ? SSS.getItem(req.offeredItemId) : null;
+            return `
+              <div class="req">
+                <div class="req-head">
+                  <div>
+                    <div class="req-title">You asked for ${itemLink(item)}</div>
+                    <p class="req-sub">from ${UI.esc(owner ? owner.name : 'a student')} · ${UI.timeAgo(req.createdAt)} · you offered: ${offered ? itemLink(offered) : '<em>nothing</em>'}</p>
+                  </div>
+                  ${statusBadge(req.status)}
+                </div>
+                ${req.status === 'pending' ? `
+                  <div class="req-actions">
+                    <button class="btn btn-outline btn-small" data-cancel="${UI.esc(req.id)}">Cancel request</button>
+                  </div>` : ''}
+                ${req.status === 'accepted' ? contactBox(owner, 'they said yes! →') : ''}
+              </div>`;
+          }).join('');
+
+      document.querySelectorAll('[data-cancel]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const r = SSS.declineRequest(btn.dataset.cancel);
+          if (r.ok) { UI.toast('Request cancelled.'); render(); }
+          else UI.toast(r.error, false);
+        });
+      });
+    }
+
+    if (UI.requireLogin()) render();
+  </script>
+</body>
+</html>

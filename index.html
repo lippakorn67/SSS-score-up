@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Swap, Share, Sustain — the school swap shop</title>
+  <meta name="description" content="Swap, Share, Sustain lets students exchange reusable books, stationery and uniforms within the school community — save money, waste less.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♻️%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow">run by students, for students</p>
+          <h1>Swap. Share. <span class="mark">Sustain.</span></h1>
+          <p class="hero-sub">The school's own swap shop. Trade the textbooks, uniforms and stationery you've outgrown with students who need them — no money, no waste.</p>
+          <div class="hero-actions">
+            <a class="btn" href="browse.html">Browse items</a>
+            <a class="btn btn-outline" href="login.html?tab=signup">Join with your school number</a>
+          </div>
+        </div>
+        <div class="deck" id="hero-deck" aria-label="Recently posted items"></div>
+      </div>
+    </section>
+
+    <div class="stats" id="stats-strip">
+      <div class="stat"><b id="stat-listed">0</b><span>items posted</span></div>
+      <div class="stat"><b id="stat-swaps">0</b><span>swaps made</span></div>
+      <div class="stat"><b id="stat-members">0</b><span>students joined</span></div>
+    </div>
+
+    <section class="section">
+      <div class="section-inner">
+        <h2>How a swap works</h2>
+        <p class="section-lead">From your shelf to someone's schoolbag in four steps.</p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <h3>Create your account</h3>
+            <p>Sign up with your school number, so everyone you trade with is a real student here.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <h3>Post what you've outgrown</h3>
+            <p>Snap a photo of a book, uniform or anything reusable and list it in under a minute.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <h3>Request a swap</h3>
+            <p>See something you need? Offer one of your items in return, or just ask nicely.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <h3>Meet &amp; exchange</h3>
+            <p>Accepted requests show each other's details. Meet up at school, check the items and trade.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="section-inner">
+        <h2>What's moving around school</h2>
+        <p class="section-lead">Everything on the board fits in a schoolbag — and deserves a second owner.</p>
+        <div class="cat-row" id="cat-row"></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-inner">
+        <h2>Why it matters</h2>
+        <div class="why-grid">
+          <div class="why-card">
+            <span class="why-emoji">💸</span>
+            <h3>Save money</h3>
+            <p>Textbooks and uniforms are expensive. Passing them down means younger students — and their families — spend less every term.</p>
+          </div>
+          <div class="why-card">
+            <span class="why-emoji">♻️</span>
+            <h3>Waste less</h3>
+            <p>Every swapped item is one less thing in the bin, and one less new thing that has to be manufactured, packaged and shipped.</p>
+          </div>
+          <div class="why-card">
+            <span class="why-emoji">🤝</span>
+            <h3>Look out for each other</h3>
+            <p>A school where things get passed down feels different. Older students help newer ones — on purpose, not by accident.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="section-inner">
+        <h2>Why we built this</h2>
+        <div class="story-grid">
+          <div>
+            <p>We were inspired by eBay, where second-hand things find new owners every day — and we wondered why that couldn't happen inside a school. So much of what students buy is used for one year, one term, or one growth spurt, and then sits in a cupboard.</p>
+          </div>
+          <div>
+            <p>Swap, Share, Sustain adapts that idea for our community: a safe, free place where students moving between grades can pass their well-kept books, uniforms and supplies to the students coming up behind them.</p>
+            <p class="story-note">old stuff → new owners → less waste ✓</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section cta">
+      <div class="section-inner">
+        <h2>Got a shelf of stuff you've outgrown?</h2>
+        <p>It takes about a minute to post your first item — and someone at school probably needs it.</p>
+        <a class="btn" href="upload.html">Post an item</a>
+      </div>
+    </section>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    UI.header('home');
+    UI.footer();
+
+    const stats = SSS.stats();
+    document.getElementById('stat-listed').textContent = stats.listed;
+    document.getElementById('stat-swaps').textContent = stats.swaps;
+    document.getElementById('stat-members').textContent = stats.members;
+
+    const newest = SSS.listItems().slice(0, 3);
+    const deck = document.getElementById('hero-deck');
+    deck.innerHTML = newest.map(UI.itemCard).join('') +
+      '<p class="deck-note">↑ real items posted by students</p>';
+
+    document.getElementById('cat-row').innerHTML = SSS.CATEGORIES.map(c =>
+      `<a class="cat-tile" href="browse.html?cat=${c.id}"><span class="cat-emoji">${c.emoji}</span>${c.label}</a>`
+    ).join('');
+  </script>
+</body>
+</html>

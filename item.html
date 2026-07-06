@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Item — Swap, Share, Sustain</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♻️%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div style="max-width:1000px;margin:0 auto">
+      <a class="back-link" href="browse.html">← Back to browsing</a>
+    </div>
+    <div class="detail" id="detail"></div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    UI.header();
+    UI.footer();
+
+    const detail = document.getElementById('detail');
+
+    function render() {
+      const item = SSS.getItem(UI.qs('id'));
+      if (!item) {
+        detail.innerHTML = `<div class="empty" style="grid-column:1/-1">
+          <p><strong>This item doesn't exist anymore.</strong></p>
+          <p>It may have been removed by its owner. <a href="browse.html">Back to browsing</a>.</p>
+        </div>`;
+        return;
+      }
+
+      const cat = UI.catInfo(item.category);
+      const owner = SSS.getUser(item.ownerId);
+      const me = SSS.currentUser();
+      const isOwner = me && me.id === item.ownerId;
+
+      let action = '';
+
+      if (isOwner) {
+        action = `
+          <div class="swap-panel">
+            <h2>This is your item</h2>
+            <p style="color:var(--ink-soft)">Requests from other students will appear on your <a href="profile.html">profile</a>.</p>
+            ${item.status === 'available'
+              ? `<button class="btn btn-danger btn-small" id="remove-btn">Remove this item</button>`
+              : `<p><span class="badge badge-swapped">Swapped</span> — this item found its new owner. 🎉</p>`}
+          </div>`;
+      } else if (item.status !== 'available') {
+        action = `
+          <div class="swap-panel">
+            <h2>Already swapped</h2>
+            <p style="color:var(--ink-soft);margin:0">This item found a new owner. <a href="browse.html">Browse what's still available</a>.</p>
+          </div>`;
+      } else if (!me) {
+        action = `
+          <div class="swap-panel">
+            <h2>Want this?</h2>
+            <p style="color:var(--ink-soft)">Log in with your school number to request a swap.</p>
+            <a class="btn" href="login.html?next=${encodeURIComponent('item.html?id=' + item.id)}">Log in to request</a>
+          </div>`;
+      } else if (SSS.hasPendingRequest(item.id, me.id)) {
+        action = `
+          <div class="swap-panel">
+            <h2>Request sent ✓</h2>
+            <p style="color:var(--ink-soft);margin:0">Waiting for ${UI.esc(owner ? owner.name : 'the owner')} to answer. Track it on your <a href="profile.html">profile</a>.</p>
+          </div>`;
+      } else {
+        const myItems = SSS.listItems({ ownerId: me.id });
+        const options = myItems.map(i =>
+          `<option value="${UI.esc(i.id)}">${UI.esc(i.title)}</option>`
+        ).join('');
+        action = `
+          <div class="swap-panel">
+            <h2>Request a swap</h2>
+            <form id="swap-form">
+              <div class="field">
+                <label for="offered">Offer one of your items <span style="font-weight:400;color:var(--ink-soft)">(optional)</span></label>
+                <select id="offered">
+                  <option value="">Nothing — just asking</option>
+                  ${options}
+                </select>
+                ${myItems.length === 0 ? '<p class="hint">You haven\'t posted anything yet — you can still ask for the item.</p>' : ''}
+              </div>
+              <div class="field">
+                <label for="message">Message to ${UI.esc(owner ? owner.name : 'the owner')}</label>
+                <textarea id="message" maxlength="300" placeholder="Why do you need it? When can you meet?"></textarea>
+              </div>
+              <p class="form-error" id="swap-error" role="alert"></p>
+              <button class="btn form-full" type="submit">Send swap request</button>
+            </form>
+          </div>`;
+      }
+
+      detail.innerHTML = `
+        <div class="detail-media">${UI.cardImage(item, 'detail-img')}</div>
+        <div>
+          <span class="chip chip-${cat.id}">${cat.emoji} ${UI.esc(cat.label)}</span>
+          <span class="badge badge-${item.status}" style="margin-left:8px">${item.status === 'available' ? 'Available' : 'Swapped'}</span>
+          <h1>${UI.esc(item.title)}</h1>
+          <div class="detail-meta">
+            <span><strong>Condition:</strong> ${UI.esc(item.condition)}</span>
+            <span>·</span>
+            <span>Posted ${UI.timeAgo(item.createdAt)}</span>
+          </div>
+          <p class="detail-desc">${UI.esc(item.description) || '<em>No description — ask the owner about it.</em>'}</p>
+          <div class="owner-card">
+            <div class="avatar">${UI.esc((owner ? owner.name : '?').charAt(0).toUpperCase())}</div>
+            <div>
+              <div class="owner-name">${UI.esc(owner ? owner.name : 'A student')}</div>
+              <div class="owner-meta">${UI.esc(owner ? owner.grade : '')}${owner ? ' · joined ' + UI.timeAgo(owner.joinedAt) : ''}</div>
+            </div>
+          </div>
+          ${action}
+        </div>`;
+
+      const removeBtn = document.getElementById('remove-btn');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+          if (!confirm('Remove this item from the board? This can\'t be undone.')) return;
+          const r = SSS.removeItem(item.id);
+          if (r.ok) location.href = 'profile.html';
+          else UI.toast(r.error, false);
+        });
+      }
+
+      const swapForm = document.getElementById('swap-form');
+      if (swapForm) {
+        swapForm.addEventListener('submit', e => {
+          e.preventDefault();
+          const r = SSS.createRequest({
+            itemId: item.id,
+            offeredItemId: document.getElementById('offered').value || null,
+            message: document.getElementById('message').value
+          });
+          if (r.ok) {
+            UI.toast('Swap request sent — fingers crossed! 🤞');
+            render();
+          } else {
+            document.getElementById('swap-error').textContent = r.error;
+          }
+        });
+      }
+    }
+
+    render();
+    if (UI.qs('posted')) UI.toast('Your item is on the board! 🎉');
+  </script>
+</body>
+</html>

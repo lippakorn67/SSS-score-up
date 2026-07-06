@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log in — Swap, Share, Sustain</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♻️%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-head" style="text-align:center">
+      <span class="eyebrow">members only (that's you)</span>
+      <h1>Come on in</h1>
+      <p class="page-sub">Log in with your school number, or create an account in seconds.</p>
+    </div>
+
+    <div class="form-card">
+      <div class="tabs" role="tablist">
+        <button class="tab active" id="tab-login" data-tab="login" role="tab" aria-selected="true" aria-controls="panel-login">Log in</button>
+        <button class="tab" id="tab-signup" data-tab="signup" role="tab" aria-selected="false" aria-controls="panel-signup">Create account</button>
+      </div>
+
+      <form id="panel-login" role="tabpanel" aria-labelledby="tab-login">
+        <div class="field">
+          <label for="login-number">School number</label>
+          <input id="login-number" name="schoolNumber" inputmode="numeric" autocomplete="username" placeholder="e.g. 10001" required>
+        </div>
+        <div class="field">
+          <label for="login-password">Password</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <p class="form-error" id="login-error" role="alert"></p>
+        <button class="btn form-full" type="submit">Log in</button>
+        <div class="divider">just looking around?</div>
+        <button class="btn btn-outline form-full" type="button" id="demo-btn">Try the demo account (Mint)</button>
+      </form>
+
+      <form id="panel-signup" role="tabpanel" aria-labelledby="tab-signup" hidden>
+        <div class="field">
+          <label for="signup-number">School number</label>
+          <input id="signup-number" name="schoolNumber" inputmode="numeric" autocomplete="username" placeholder="e.g. 12345" required>
+          <p class="hint">The student ID number the school gave you — it proves you're one of us.</p>
+        </div>
+        <div class="field">
+          <label for="signup-name">Name or nickname</label>
+          <input id="signup-name" name="name" autocomplete="name" placeholder="What should other students call you?" required>
+        </div>
+        <div class="field">
+          <label for="signup-grade">Grade</label>
+          <select id="signup-grade" name="grade" required>
+            <option value="" disabled selected>Choose your grade</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="signup-password">Password</label>
+          <input id="signup-password" name="password" type="password" autocomplete="new-password" required>
+          <p class="hint">At least 6 characters. This is a class demo — don't reuse a real password.</p>
+        </div>
+        <p class="form-error" id="signup-error" role="alert"></p>
+        <button class="btn form-full" type="submit">Create account</button>
+      </form>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    UI.header('login');
+    UI.footer();
+
+    const next = UI.qs('next') || 'browse.html';
+
+    // If already logged in, no need to be here.
+    if (SSS.currentUser()) location.href = next;
+
+    const gradeSelect = document.getElementById('signup-grade');
+    SSS.GRADES.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      gradeSelect.appendChild(opt);
+    });
+
+    const tabs = document.querySelectorAll('.tab');
+    function showTab(name) {
+      tabs.forEach(t => {
+        const on = t.dataset.tab === name;
+        t.classList.toggle('active', on);
+        t.setAttribute('aria-selected', on);
+      });
+      document.getElementById('panel-login').hidden = name !== 'login';
+      document.getElementById('panel-signup').hidden = name !== 'signup';
+    }
+    tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+    if (UI.qs('tab') === 'signup') showTab('signup');
+
+    document.getElementById('panel-login').addEventListener('submit', e => {
+      e.preventDefault();
+      const r = SSS.logIn(
+        document.getElementById('login-number').value,
+        document.getElementById('login-password').value
+      );
+      if (r.ok) location.href = next;
+      else document.getElementById('login-error').textContent = r.error;
+    });
+
+    document.getElementById('panel-signup').addEventListener('submit', e => {
+      e.preventDefault();
+      const r = SSS.signUp({
+        schoolNumber: document.getElementById('signup-number').value,
+        name: document.getElementById('signup-name').value,
+        grade: document.getElementById('signup-grade').value,
+        password: document.getElementById('signup-password').value
+      });
+      if (r.ok) location.href = next;
+      else document.getElementById('signup-error').textContent = r.error;
+    });
+
+    document.getElementById('demo-btn').addEventListener('click', () => {
+      const r = SSS.logIn('10001', 'demo1234');
+      if (r.ok) location.href = next;
+      else UI.toast('Demo account not available — it may have been removed on this device.', false);
+    });
+  </script>
+</body>
+</html>
