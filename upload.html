@@ -66,26 +66,28 @@
 
   <footer id="site-footer"></footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script src="js/store.js"></script>
   <script src="js/app.js"></script>
   <script>
-    UI.header('upload');
-    UI.footer();
+    (async () => {
+      const me = await UI.init('upload');
+      if (!UI.requireLogin(me)) return;
 
-    if (UI.requireLogin()) {
       const catSelect = document.getElementById('category');
-      SSS.CATEGORIES.forEach(c => {
+      SSS.CATEGORIES.forEach(cat => {
         const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = c.emoji + ' ' + c.label;
+        opt.value = cat.id;
+        opt.textContent = cat.emoji + ' ' + cat.label;
         catSelect.appendChild(opt);
       });
 
       const condSelect = document.getElementById('condition');
-      SSS.CONDITIONS.forEach(c => {
+      SSS.CONDITIONS.forEach(cond => {
         const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c;
+        opt.value = cond;
+        opt.textContent = cond;
         condSelect.appendChild(opt);
       });
 
@@ -118,9 +120,12 @@
         }
       });
 
-      document.getElementById('upload-form').addEventListener('submit', e => {
+      document.getElementById('upload-form').addEventListener('submit', async e => {
         e.preventDefault();
-        const r = SSS.addItem({
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.textContent = 'Posting…';
+        const r = await SSS.addItem({
           title: document.getElementById('title').value,
           category: document.getElementById('category').value,
           condition: document.getElementById('condition').value,
@@ -130,10 +135,12 @@
         if (r.ok) {
           location.href = 'item.html?id=' + encodeURIComponent(r.item.id) + '&posted=1';
         } else {
+          btn.disabled = false;
+          btn.textContent = 'Post item';
           document.getElementById('upload-error').textContent = r.error;
         }
       });
-    }
+    })();
   </script>
 </body>
 </html>

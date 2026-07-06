@@ -18,33 +18,47 @@ away or buying new ones. Inspired by eBay, rebuilt for the school hallway.
 
 ## Try it
 
-Open `index.html` in any modern browser — no install, no server needed.
+Open `index.html` in any modern browser — no install or build step needed.
 
 Demo account: school number `10001`, password `demo1234`
 (or click **"Try the demo account"** on the login page).
 
 ## How it works under the hood
 
-This is a front-end demo: there is no server. All accounts, items, photos and
-swap requests are stored in the browser's **localStorage**, so data stays on
-the device where it was created. A few demo students and items are seeded on
-first visit.
+The site is a static front end backed by **Supabase** (a hosted Postgres
+database with authentication and file storage):
 
-> ⚠️ Because this is a class demo, passwords are only lightly obfuscated —
-> never reuse a real password here.
+- **Accounts** use Supabase Auth. Students sign in with their school number,
+  which is mapped to a synthetic email behind the scenes. Passwords are
+  properly hashed by the auth service.
+- **Items and swap requests** live in Postgres tables protected by Row Level
+  Security: anyone can browse, but only owners can edit or delete their items,
+  and only the two students involved can see a swap request.
+- **Photos** are resized in the browser, then uploaded to a public Supabase
+  storage bucket.
+- **Accepting a swap** runs as a database function so both items are marked
+  swapped atomically, and competing requests are auto-declined.
+
+The full database setup (tables, security policies, functions) is in
+[`supabase/setup.sql`](supabase/setup.sql) — paste it into the Supabase SQL
+Editor to recreate the backend on a fresh project. Project credentials live in
+[`js/config.js`](js/config.js); the anon key is safe to publish because all
+access is controlled by the security policies.
 
 ## Project structure
 
 ```
-index.html      Landing page
-login.html      Log in / create account
-browse.html     Item board with search & filters
-upload.html     Post an item
-item.html       Item details & swap requests
-profile.html    Your items, incoming & sent requests
-css/style.css   Stylesheet (school-notebook theme)
-js/store.js     Data layer (localStorage demo backend)
-js/app.js       Shared UI helpers
+index.html         Landing page
+login.html         Log in / create account
+browse.html        Item board with search & filters
+upload.html        Post an item
+item.html          Item details & swap requests
+profile.html       Your items, incoming & sent requests
+css/style.css      Stylesheet (school-notebook theme)
+js/config.js       Supabase project URL + anon key
+js/store.js        Data layer (Supabase backend)
+js/app.js          Shared UI helpers
+supabase/setup.sql Database schema, security policies & functions
 ```
 
 ## Deploying

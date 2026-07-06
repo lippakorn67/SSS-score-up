@@ -122,25 +122,30 @@
 
   <footer id="site-footer"></footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script src="js/store.js"></script>
   <script src="js/app.js"></script>
   <script>
-    UI.header('home');
-    UI.footer();
+    (async () => {
+      await UI.init('home');
 
-    const stats = SSS.stats();
-    document.getElementById('stat-listed').textContent = stats.listed;
-    document.getElementById('stat-swaps').textContent = stats.swaps;
-    document.getElementById('stat-members').textContent = stats.members;
+      document.getElementById('cat-row').innerHTML = SSS.CATEGORIES.map(c =>
+        `<a class="cat-tile" href="browse.html?cat=${c.id}"><span class="cat-emoji">${c.emoji}</span>${c.label}</a>`
+      ).join('');
 
-    const newest = SSS.listItems().slice(0, 3);
-    const deck = document.getElementById('hero-deck');
-    deck.innerHTML = newest.map(UI.itemCard).join('') +
-      '<p class="deck-note">↑ real items posted by students</p>';
+      const [stats, newest] = await Promise.all([SSS.stats(), SSS.listItems()]);
+      document.getElementById('stat-listed').textContent = stats.listed;
+      document.getElementById('stat-swaps').textContent = stats.swaps;
+      document.getElementById('stat-members').textContent = stats.members;
 
-    document.getElementById('cat-row').innerHTML = SSS.CATEGORIES.map(c =>
-      `<a class="cat-tile" href="browse.html?cat=${c.id}"><span class="cat-emoji">${c.emoji}</span>${c.label}</a>`
-    ).join('');
+      const deck = document.getElementById('hero-deck');
+      const top = newest.slice(0, 3);
+      deck.innerHTML = top.length
+        ? top.map(UI.itemCard).join('') + '<p class="deck-note">↑ real items posted by students</p>'
+        : `<div class="empty"><p><strong>The board is brand new.</strong></p>
+           <p><a href="upload.html">Post the first item</a> and it will show up right here.</p></div>`;
+    })();
   </script>
 </body>
 </html>

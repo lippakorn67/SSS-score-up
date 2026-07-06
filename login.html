@@ -70,65 +70,82 @@
 
   <footer id="site-footer"></footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script src="js/store.js"></script>
   <script src="js/app.js"></script>
   <script>
-    UI.header('login');
-    UI.footer();
+    (async () => {
+      const me = await UI.init('login');
+      const next = UI.qs('next') || 'browse.html';
 
-    const next = UI.qs('next') || 'browse.html';
+      // If already logged in, no need to be here.
+      if (me) {
+        location.href = next;
+        return;
+      }
 
-    // If already logged in, no need to be here.
-    if (SSS.currentUser()) location.href = next;
-
-    const gradeSelect = document.getElementById('signup-grade');
-    SSS.GRADES.forEach(g => {
-      const opt = document.createElement('option');
-      opt.value = g;
-      opt.textContent = g;
-      gradeSelect.appendChild(opt);
-    });
-
-    const tabs = document.querySelectorAll('.tab');
-    function showTab(name) {
-      tabs.forEach(t => {
-        const on = t.dataset.tab === name;
-        t.classList.toggle('active', on);
-        t.setAttribute('aria-selected', on);
+      const gradeSelect = document.getElementById('signup-grade');
+      SSS.GRADES.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.textContent = g;
+        gradeSelect.appendChild(opt);
       });
-      document.getElementById('panel-login').hidden = name !== 'login';
-      document.getElementById('panel-signup').hidden = name !== 'signup';
-    }
-    tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
-    if (UI.qs('tab') === 'signup') showTab('signup');
 
-    document.getElementById('panel-login').addEventListener('submit', e => {
-      e.preventDefault();
-      const r = SSS.logIn(
-        document.getElementById('login-number').value,
-        document.getElementById('login-password').value
-      );
-      if (r.ok) location.href = next;
-      else document.getElementById('login-error').textContent = r.error;
-    });
+      const tabs = document.querySelectorAll('.tab');
+      function showTab(name) {
+        tabs.forEach(t => {
+          const on = t.dataset.tab === name;
+          t.classList.toggle('active', on);
+          t.setAttribute('aria-selected', on);
+        });
+        document.getElementById('panel-login').hidden = name !== 'login';
+        document.getElementById('panel-signup').hidden = name !== 'signup';
+      }
+      tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+      if (UI.qs('tab') === 'signup') showTab('signup');
 
-    document.getElementById('panel-signup').addEventListener('submit', e => {
-      e.preventDefault();
-      const r = SSS.signUp({
-        schoolNumber: document.getElementById('signup-number').value,
-        name: document.getElementById('signup-name').value,
-        grade: document.getElementById('signup-grade').value,
-        password: document.getElementById('signup-password').value
+      /* Disables a button while the server is working so a slow
+         connection doesn't cause double submits. */
+      async function busy(btn, work) {
+        const label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'One moment…';
+        try { return await work(); }
+        finally { btn.disabled = false; btn.textContent = label; }
+      }
+
+      document.getElementById('panel-login').addEventListener('submit', async e => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const r = await busy(btn, () => SSS.logIn(
+          document.getElementById('login-number').value,
+          document.getElementById('login-password').value
+        ));
+        if (r.ok) location.href = next;
+        else document.getElementById('login-error').textContent = r.error;
       });
-      if (r.ok) location.href = next;
-      else document.getElementById('signup-error').textContent = r.error;
-    });
 
-    document.getElementById('demo-btn').addEventListener('click', () => {
-      const r = SSS.logIn('10001', 'demo1234');
-      if (r.ok) location.href = next;
-      else UI.toast('Demo account not available — it may have been removed on this device.', false);
-    });
+      document.getElementById('panel-signup').addEventListener('submit', async e => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const r = await busy(btn, () => SSS.signUp({
+          schoolNumber: document.getElementById('signup-number').value,
+          name: document.getElementById('signup-name').value,
+          grade: document.getElementById('signup-grade').value,
+          password: document.getElementById('signup-password').value
+        }));
+        if (r.ok) location.href = next;
+        else document.getElementById('signup-error').textContent = r.error;
+      });
+
+      document.getElementById('demo-btn').addEventListener('click', async e => {
+        const r = await busy(e.target, () => SSS.logIn('10001', 'demo1234'));
+        if (r.ok) location.href = next;
+        else UI.toast('Demo account not available on this project.', false);
+      });
+    })();
   </script>
 </body>
 </html>

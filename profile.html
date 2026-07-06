@@ -36,11 +36,14 @@
 
   <footer id="site-footer"></footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script src="js/store.js"></script>
   <script src="js/app.js"></script>
   <script>
-    UI.header('profile');
-    UI.footer();
+    (async () => {
+    const me = await UI.init('profile');
+    if (!UI.requireLogin(me)) return;
 
     function statusBadge(status) {
       const label = { pending: 'Pending', accepted: 'Accepted', declined: 'Declined', cancelled: 'Cancelled' }[status] || status;
@@ -70,9 +73,7 @@
       </div>`;
     }
 
-    function render() {
-      const me = SSS.currentUser();
-
+    async function render() {
       document.getElementById('profile-card').innerHTML = `
         <div class="avatar">${UI.esc(me.name.charAt(0).toUpperCase())}</div>
         <div class="profile-info">
@@ -80,13 +81,14 @@
           <p class="profile-meta" style="margin:0">${UI.esc(me.grade)} · school number ${UI.esc(me.schoolNumber)} · joined ${UI.timeAgo(me.joinedAt)}</p>
         </div>
         <button class="btn btn-outline btn-small" id="logout-btn">Log out</button>`;
-      document.getElementById('logout-btn').addEventListener('click', () => {
-        SSS.logOut();
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        await SSS.logOut();
         location.href = 'index.html';
       });
 
       /* ----- my items ----- */
-      const mine = SSS.listItems({ ownerId: me.id, includeSwapped: true });
+      const mine = await SSS.listItems({ ownerId: me.id, includeSwapped: true });
+      const { incoming, sent } = await SSS.myRequests();
       document.getElementById('items-note').textContent =
         mine.length === 0 ? '' : '(' + mine.length + ')';
       document.getElementById('my-items').innerHTML = mine.length === 0
@@ -104,30 +106,27 @@
           `<p style="margin-top:14px"><a class="btn btn-small" href="upload.html">+ Post another item</a></p>`;
 
       document.querySelectorAll('[data-remove]').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
           if (!confirm('Remove this item from the board? This can\'t be undone.')) return;
-          const r = SSS.removeItem(btn.dataset.remove);
+          const r = await SSS.removeItem(btn.dataset.remove);
           if (r.ok) { UI.toast('Item removed.'); render(); }
           else UI.toast(r.error, false);
         });
       });
 
       /* ----- incoming requests ----- */
-      const incoming = SSS.requestsForOwner(me.id);
       document.getElementById('incoming-note').textContent =
         incoming.length === 0 ? '' : '(' + incoming.filter(r => r.status === 'pending').length + ' waiting)';
       document.getElementById('incoming').innerHTML = incoming.length === 0
         ? `<div class="empty"><p><strong>No requests yet.</strong></p><p>When someone wants one of your items, it shows up here.</p></div>`
         : incoming.map(req => {
-            const item = SSS.getItem(req.itemId);
-            const from = SSS.getUser(req.fromUserId);
-            const offered = req.offeredItemId ? SSS.getItem(req.offeredItemId) : null;
+            const from = req.sender;
             return `
               <div class="req">
                 <div class="req-head">
                   <div>
-                    <div class="req-title">${UI.esc(from ? from.name : 'A student')} wants ${itemLink(item)}</div>
-                    <p class="req-sub">${UI.esc(from ? from.grade : '')} · ${UI.timeAgo(req.createdAt)} · offers: ${offered ? itemLink(offered) : '<em>nothing — just asking</em>'}</p>
+                    <div class="req-title">${UI.esc(from ? from.name : 'A student')} wants ${itemLink(req.item)}</div>
+                    <p class="req-sub">${UI.esc(from ? from.grade : '')} · ${UI.timeAgo(req.createdAt)} · offers: ${req.offered ? itemLink(req.offered) : '<em>nothing — just asking</em>'}</p>
                   </div>
                   ${statusBadge(req.status)}
                 </div>
@@ -142,36 +141,35 @@
           }).join('');
 
       document.querySelectorAll('[data-accept]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const r = SSS.acceptRequest(btn.dataset.accept);
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const r = await SSS.acceptRequest(btn.dataset.accept);
           if (r.ok) { UI.toast('Swap accepted — arrange the exchange at school! 🎉'); render(); }
-          else UI.toast(r.error, false);
+          else { btn.disabled = false; UI.toast(r.error, false); }
         });
       });
       document.querySelectorAll('[data-decline]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const r = SSS.declineRequest(btn.dataset.decline);
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const r = await SSS.declineRequest(btn.dataset.decline);
           if (r.ok) { UI.toast('Request declined.'); render(); }
-          else UI.toast(r.error, false);
+          else { btn.disabled = false; UI.toast(r.error, false); }
         });
       });
 
       /* ----- sent requests ----- */
-      const sent = SSS.requestsFrom(me.id);
       document.getElementById('sent-note').textContent =
         sent.length === 0 ? '' : '(' + sent.length + ')';
       document.getElementById('sent').innerHTML = sent.length === 0
         ? `<div class="empty"><p><strong>You haven't asked for anything yet.</strong></p><p><a href="browse.html">Browse the board</a> and see what you need.</p></div>`
         : sent.map(req => {
-            const item = SSS.getItem(req.itemId);
-            const owner = item ? SSS.getUser(item.ownerId) : null;
-            const offered = req.offeredItemId ? SSS.getItem(req.offeredItemId) : null;
+            const owner = req.item ? req.item.owner : null;
             return `
               <div class="req">
                 <div class="req-head">
                   <div>
-                    <div class="req-title">You asked for ${itemLink(item)}</div>
-                    <p class="req-sub">from ${UI.esc(owner ? owner.name : 'a student')} · ${UI.timeAgo(req.createdAt)} · you offered: ${offered ? itemLink(offered) : '<em>nothing</em>'}</p>
+                    <div class="req-title">You asked for ${itemLink(req.item)}</div>
+                    <p class="req-sub">from ${UI.esc(owner ? owner.name : 'a student')} · ${UI.timeAgo(req.createdAt)} · you offered: ${req.offered ? itemLink(req.offered) : '<em>nothing</em>'}</p>
                   </div>
                   ${statusBadge(req.status)}
                 </div>
@@ -184,15 +182,17 @@
           }).join('');
 
       document.querySelectorAll('[data-cancel]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const r = SSS.declineRequest(btn.dataset.cancel);
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const r = await SSS.declineRequest(btn.dataset.cancel);
           if (r.ok) { UI.toast('Request cancelled.'); render(); }
-          else UI.toast(r.error, false);
+          else { btn.disabled = false; UI.toast(r.error, false); }
         });
       });
     }
 
-    if (UI.requireLogin()) render();
+    await render();
+    })();
   </script>
 </body>
 </html>

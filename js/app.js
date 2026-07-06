@@ -24,10 +24,18 @@ const UI = (() => {
 
   const qs = (name) => new URLSearchParams(location.search).get(name);
 
-  function header(active) {
+  /* Fetches the session once, renders header + footer, and returns
+     the logged-in user (or null) for the page to use. */
+  async function init(active) {
+    const me = await SSS.currentUser();
+    header(active, me);
+    footer();
+    return me;
+  }
+
+  function header(active, me) {
     const el = document.getElementById('site-header');
     if (!el) return;
-    const me = SSS.currentUser();
     el.innerHTML = `
       <div class="nav-inner">
         <a class="logo" href="index.html">
@@ -69,8 +77,8 @@ const UI = (() => {
     toast._t = setTimeout(() => t.classList.remove('toast-show'), 3200);
   }
 
-  function requireLogin() {
-    if (!SSS.currentUser()) {
+  function requireLogin(me) {
+    if (!me) {
       const here = location.pathname.split('/').pop() + location.search;
       location.href = 'login.html?next=' + encodeURIComponent(here);
       return false;
@@ -81,13 +89,12 @@ const UI = (() => {
   function cardImage(item, extraClass) {
     const cat = catInfo(item.category);
     return item.image
-      ? `<img class="${extraClass}" src="${item.image}" alt="${esc(item.title)}">`
+      ? `<img class="${extraClass}" src="${esc(item.image)}" alt="${esc(item.title)}">`
       : `<div class="${extraClass} ph ph-${cat.id}" role="img" aria-label="${esc(cat.label)}">${cat.emoji}</div>`;
   }
 
   function itemCard(item) {
     const cat = catInfo(item.category);
-    const owner = SSS.getUser(item.ownerId);
     return `
       <a class="item-card" href="item.html?id=${encodeURIComponent(item.id)}">
         ${cardImage(item, 'card-img')}
@@ -97,13 +104,13 @@ const UI = (() => {
             <span class="cond">${esc(item.condition)}</span>
           </div>
           <h3 class="card-title">${esc(item.title)}</h3>
-          <p class="card-owner">${esc(owner ? owner.name : 'A student')} · ${timeAgo(item.createdAt)}</p>
+          <p class="card-owner">${esc(item.owner ? item.owner.name : 'A student')} · ${timeAgo(item.createdAt)}</p>
         </div>
       </a>`;
   }
 
   /* Reads a picked photo, scales it down and returns a JPEG data URL
-     small enough to live in localStorage. */
+     ready to upload. */
   function fileToDataURL(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -131,5 +138,5 @@ const UI = (() => {
     });
   }
 
-  return { esc, catInfo, timeAgo, qs, header, footer, toast, requireLogin, cardImage, itemCard, fileToDataURL };
+  return { esc, catInfo, timeAgo, qs, init, header, footer, toast, requireLogin, cardImage, itemCard, fileToDataURL };
 })();

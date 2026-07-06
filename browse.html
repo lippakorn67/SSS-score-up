@@ -33,59 +33,63 @@
 
   <footer id="site-footer"></footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script src="js/store.js"></script>
   <script src="js/app.js"></script>
   <script>
-    UI.header('browse');
-    UI.footer();
+    (async () => {
+      await UI.init('browse');
 
-    const state = { q: '', category: UI.qs('cat') || '' };
+      const state = { q: '', category: UI.qs('cat') || '' };
 
-    const chipWrap = document.getElementById('cat-chips');
-    const cats = [{ id: '', label: 'All', emoji: '' }].concat(SSS.CATEGORIES);
-    chipWrap.innerHTML = cats.map(c =>
-      `<button class="chip-btn" data-cat="${c.id}">${c.emoji ? c.emoji + ' ' : ''}${c.label}</button>`
-    ).join('');
+      const chipWrap = document.getElementById('cat-chips');
+      const cats = [{ id: '', label: 'All', emoji: '' }].concat(SSS.CATEGORIES);
+      chipWrap.innerHTML = cats.map(c =>
+        `<button class="chip-btn" data-cat="${c.id}">${c.emoji ? c.emoji + ' ' : ''}${c.label}</button>`
+      ).join('');
 
-    function render() {
-      chipWrap.querySelectorAll('.chip-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.cat === state.category)
-      );
-      const list = SSS.listItems({
-        q: state.q || undefined,
-        category: state.category || undefined
-      });
-      const count = document.getElementById('result-count');
-      count.textContent = list.length === 1 ? '1 item up for swap' : list.length + ' items up for swap';
-      const grid = document.getElementById('grid');
-      if (list.length === 0) {
-        const catLabel = state.category ? UI.catInfo(state.category).label.toLowerCase() : '';
-        grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
-          <p><strong>Nothing here yet${catLabel ? ' in ' + UI.esc(catLabel) : ''}.</strong></p>
-          <p>Have something to pass down? <a href="upload.html">Post the first one</a>.</p>
-        </div>`;
-      } else {
-        grid.innerHTML = list.map(UI.itemCard).join('');
+      async function render() {
+        chipWrap.querySelectorAll('.chip-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.cat === state.category)
+        );
+        document.getElementById('result-count').textContent = 'Loading…';
+        const list = await SSS.listItems({
+          q: state.q || undefined,
+          category: state.category || undefined
+        });
+        const count = document.getElementById('result-count');
+        count.textContent = list.length === 1 ? '1 item up for swap' : list.length + ' items up for swap';
+        const grid = document.getElementById('grid');
+        if (list.length === 0) {
+          const catLabel = state.category ? UI.catInfo(state.category).label.toLowerCase() : '';
+          grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
+            <p><strong>Nothing here yet${catLabel ? ' in ' + UI.esc(catLabel) : ''}.</strong></p>
+            <p>Have something to pass down? <a href="upload.html">Post the first one</a>.</p>
+          </div>`;
+        } else {
+          grid.innerHTML = list.map(UI.itemCard).join('');
+        }
       }
-    }
 
-    chipWrap.addEventListener('click', e => {
-      const btn = e.target.closest('.chip-btn');
-      if (!btn) return;
-      state.category = btn.dataset.cat;
-      render();
-    });
-
-    let debounce;
-    document.getElementById('search').addEventListener('input', e => {
-      clearTimeout(debounce);
-      debounce = setTimeout(() => {
-        state.q = e.target.value.trim();
+      chipWrap.addEventListener('click', e => {
+        const btn = e.target.closest('.chip-btn');
+        if (!btn) return;
+        state.category = btn.dataset.cat;
         render();
-      }, 150);
-    });
+      });
 
-    render();
+      let debounce;
+      document.getElementById('search').addEventListener('input', e => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => {
+          state.q = e.target.value.trim();
+          render();
+        }, 250);
+      });
+
+      await render();
+    })();
   </script>
 </body>
 </html>

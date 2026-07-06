@@ -1,34 +1,17 @@
 /* ============================================================
-   Swap, Share, Sustain — data layer
-   Demo backend: everything lives in the browser's localStorage.
-   Passwords are only lightly obfuscated — this is a school demo,
-   never reuse a real password here.
+   Swap, Share, Sustain — data layer (Supabase backend)
+   Accounts, items, photos and swap requests live in a shared
+   Supabase project, so every device sees the same board.
+   All functions are async and return { ok, ... } result objects
+   where something can go wrong.
    ============================================================ */
 
 const SSS = (() => {
-  const K = {
-    users: 'sss_users',
-    items: 'sss_items',
-    requests: 'sss_requests',
-    session: 'sss_session',
-    seeded: 'sss_seeded_v1'
-  };
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  const load = (key, fallback) => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch (e) {
-      return fallback;
-    }
-  };
-  const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
-  const uid = (prefix) => prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  const hash = (s) => {
-    let h = 5381;
-    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-    return 'h' + (h >>> 0).toString(36);
-  };
+  /* School numbers double as logins. Supabase Auth wants an email,
+     so each school number gets a synthetic one. */
+  const emailFor = (schoolNumber) => 'sn' + String(schoolNumber).trim() + '@sss-swap.app';
 
   const CATEGORIES = [
     { id: 'books',      label: 'Books',          emoji: '📚' },
@@ -40,52 +23,68 @@ const SSS = (() => {
   const CONDITIONS = ['Like new', 'Good', 'Fair', 'Well-loved'];
   const GRADES = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
 
-  const DAY = 86400000;
+  /* ---------- row mappers (snake_case DB → camelCase app) ---------- */
 
-  function seed() {
-    if (localStorage.getItem(K.seeded)) return;
-    const now = Date.now();
-    const users = [
-      { id: 'u-mint',  schoolNumber: '10001', name: 'Mint',  grade: 'Grade 11', pass: hash('demo1234'), joinedAt: now - 34 * DAY },
-      { id: 'u-ken',   schoolNumber: '10002', name: 'Ken',   grade: 'Grade 9',  pass: hash('demo1234'), joinedAt: now - 28 * DAY },
-      { id: 'u-praew', schoolNumber: '10003', name: 'Praew', grade: 'Grade 12', pass: hash('demo1234'), joinedAt: now - 21 * DAY }
-    ];
-    const items = [
-      { id: 'i-bio',   ownerId: 'u-mint',  title: 'IGCSE Biology textbook (3rd edition)', category: 'books',      condition: 'Good',     description: 'Complete with all pages. Some pencil notes in the margins that you can erase. Great for Grade 10–11.', image: null, status: 'available', createdAt: now - 12 * DAY },
-      { id: 'i-high',  ownerId: 'u-ken',   title: 'Set of 12 highlighters, barely used',  category: 'stationery', condition: 'Like new', description: 'Bought a big pack and only used two of them. All colours still bright.', image: null, status: 'available', createdAt: now - 10 * DAY },
-      { id: 'i-pe',    ownerId: 'u-praew', title: 'PE shirt, size M',                     category: 'uniforms',   condition: 'Good',     description: 'Washed and ironed. I moved up a size, so it is looking for a new owner.', image: null, status: 'available', createdAt: now - 9 * DAY },
-      { id: 'i-calc',  ownerId: 'u-ken',   title: 'Casio fx-991EX scientific calculator', category: 'other',      condition: 'Good',     description: 'Works perfectly and includes the slide cover. I got a new one as a gift.', image: null, status: 'available', createdAt: now - 7 * DAY },
-      { id: 'i-lit',   ownerId: 'u-praew', title: 'Thai literature reader, M.5',          category: 'books',      condition: 'Fair',     description: 'Cover is a little worn but the inside is clean. All chapters intact.', image: null, status: 'available', createdAt: now - 6 * DAY },
-      { id: 'i-rack',  ownerId: 'u-ken',   title: 'Badminton racket with case',           category: 'sports',     condition: 'Good',     description: 'Strings in good shape. Comes with a zip case. I switched to basketball.', image: null, status: 'available', createdAt: now - 5 * DAY },
-      { id: 'i-blaz',  ownerId: 'u-mint',  title: 'School blazer, size S',                category: 'uniforms',   condition: 'Like new', description: 'Worn maybe five times. Dry-cleaned and ready for assembly days.', image: null, status: 'available', createdAt: now - 4 * DAY },
-      { id: 'i-note',  ownerId: 'u-praew', title: 'Graph notebooks, pack of 3 (unused)',  category: 'stationery', condition: 'Like new', description: 'Still in the plastic wrap. Extra from last term.', image: null, status: 'available', createdAt: now - 2 * DAY },
-      { id: 'i-chess', ownerId: 'u-mint',  title: 'Chess set, complete with board',       category: 'sports',     condition: 'Good',     description: 'All 32 pieces counted twice. Folding wooden board.', image: null, status: 'available', createdAt: now - 1 * DAY }
-    ];
-    const requests = [
-      { id: 'r-demo', itemId: 'i-blaz', fromUserId: 'u-ken', offeredItemId: 'i-rack', message: 'My sister needs a blazer for next term — would you trade for my badminton racket?', status: 'pending', createdAt: now - 1 * DAY }
-    ];
-    save(K.users, users);
-    save(K.items, items);
-    save(K.requests, requests);
-    localStorage.setItem(K.seeded, '1');
+  const rowToUser = (r) => r ? {
+    id: r.id,
+    name: r.name,
+    schoolNumber: r.school_number,
+    grade: r.grade,
+    joinedAt: Date.parse(r.joined_at)
+  } : null;
+
+  const rowToItem = (r) => r ? {
+    id: r.id,
+    ownerId: r.owner_id,
+    title: r.title,
+    category: r.category,
+    condition: r.condition,
+    description: r.description,
+    image: r.image_url,
+    status: r.status,
+    createdAt: Date.parse(r.created_at),
+    owner: rowToUser(r.owner)
+  } : null;
+
+  const rowToRequest = (r) => r ? {
+    id: r.id,
+    itemId: r.item_id,
+    fromUserId: r.from_user_id,
+    offeredItemId: r.offered_item_id,
+    message: r.message,
+    status: r.status,
+    createdAt: Date.parse(r.created_at),
+    item: rowToItem(r.item),
+    offered: rowToItem(r.offered),
+    sender: rowToUser(r.sender)
+  } : null;
+
+  function dataURLtoBlob(dataUrl) {
+    const [head, b64] = dataUrl.split(',');
+    const mime = (head.match(/data:(.*?);/) || [])[1] || 'image/jpeg';
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
   }
-  seed();
 
   /* ---------- users & session ---------- */
 
-  const users = () => load(K.users, []);
-  const publicUser = (u) => u ? { id: u.id, name: u.name, schoolNumber: u.schoolNumber, grade: u.grade, joinedAt: u.joinedAt } : null;
+  let cachedProfile = null;
 
-  function getUser(id) {
-    return publicUser(users().find(u => u.id === id) || null);
+  async function currentUser() {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) {
+      cachedProfile = null;
+      return null;
+    }
+    if (cachedProfile && cachedProfile.id === session.user.id) return cachedProfile;
+    const { data } = await db.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+    cachedProfile = rowToUser(data);
+    return cachedProfile;
   }
 
-  function currentUser() {
-    const id = localStorage.getItem(K.session);
-    return id ? getUser(id) : null;
-  }
-
-  function signUp(data) {
+  async function signUp(data) {
     const schoolNumber = String(data.schoolNumber || '').trim();
     const name = String(data.name || '').trim();
     const grade = String(data.grade || '').trim();
@@ -94,199 +93,199 @@ const SSS = (() => {
     if (!name) return { ok: false, error: 'Please enter your name.' };
     if (!GRADES.includes(grade)) return { ok: false, error: 'Please choose your grade.' };
     if (password.length < 6) return { ok: false, error: 'Password needs at least 6 characters.' };
-    const all = users();
-    if (all.some(u => u.schoolNumber === schoolNumber)) {
-      return { ok: false, error: 'That school number already has an account. Try logging in instead.' };
+
+    const { data: result, error } = await db.auth.signUp({
+      email: emailFor(schoolNumber),
+      password,
+      options: { data: { school_number: schoolNumber, name, grade } }
+    });
+    if (error) {
+      if (/already registered/i.test(error.message)) {
+        return { ok: false, error: 'That school number already has an account. Try logging in instead.' };
+      }
+      return { ok: false, error: error.message };
     }
-    const user = { id: uid('u'), schoolNumber, name, grade, pass: hash(password), joinedAt: Date.now() };
-    all.push(user);
-    save(K.users, all);
-    localStorage.setItem(K.session, user.id);
-    return { ok: true, user: publicUser(user) };
+    if (!result.session) {
+      return { ok: false, error: 'Almost there — the Supabase project still requires email confirmation. In the dashboard, turn off "Confirm email" under Authentication → Sign In / Providers → Email.' };
+    }
+    cachedProfile = null;
+    return { ok: true };
   }
 
-  function logIn(schoolNumber, password) {
-    const u = users().find(x => x.schoolNumber === String(schoolNumber || '').trim());
-    if (!u || u.pass !== hash(String(password || ''))) {
+  async function logIn(schoolNumber, password) {
+    const { error } = await db.auth.signInWithPassword({
+      email: emailFor(schoolNumber),
+      password: String(password || '')
+    });
+    if (error) {
+      if (/not confirmed/i.test(error.message)) {
+        return { ok: false, error: 'This account is waiting for email confirmation. In the Supabase dashboard, turn off "Confirm email" under Authentication → Sign In / Providers → Email.' };
+      }
       return { ok: false, error: 'School number or password is incorrect.' };
     }
-    localStorage.setItem(K.session, u.id);
-    return { ok: true, user: publicUser(u) };
+    cachedProfile = null;
+    return { ok: true };
   }
 
-  function logOut() {
-    localStorage.removeItem(K.session);
+  async function logOut() {
+    await db.auth.signOut();
+    cachedProfile = null;
   }
 
   /* ---------- items ---------- */
 
-  const items = () => load(K.items, []);
-  const saveItems = (list) => save(K.items, list);
+  const ITEM_SELECT = '*, owner:profiles(*)';
 
-  function getItem(id) {
-    return items().find(i => i.id === id) || null;
-  }
-
-  function listItems(opts = {}) {
-    let list = items();
-    if (!opts.includeSwapped) list = list.filter(i => i.status === 'available');
-    if (opts.category) list = list.filter(i => i.category === opts.category);
-    if (opts.ownerId) list = list.filter(i => i.ownerId === opts.ownerId);
+  async function listItems(opts = {}) {
+    let query = db.from('items').select(ITEM_SELECT).order('created_at', { ascending: false });
+    if (!opts.includeSwapped) query = query.eq('status', 'available');
+    if (opts.category) query = query.eq('category', opts.category);
+    if (opts.ownerId) query = query.eq('owner_id', opts.ownerId);
     if (opts.q) {
-      const q = String(opts.q).toLowerCase();
-      list = list.filter(i => (i.title + ' ' + i.description).toLowerCase().includes(q));
+      const safe = String(opts.q).replace(/[%_,()]/g, ' ').trim();
+      if (safe) query = query.or('title.ilike.%' + safe + '%,description.ilike.%' + safe + '%');
     }
-    return list.slice().sort((a, b) => b.createdAt - a.createdAt);
+    const { data, error } = await query;
+    if (error) {
+      console.error('listItems:', error.message);
+      return [];
+    }
+    return data.map(rowToItem);
   }
 
-  function addItem(data) {
-    const me = currentUser();
+  async function getItem(id) {
+    if (!id) return null;
+    const { data, error } = await db.from('items').select(ITEM_SELECT).eq('id', id).maybeSingle();
+    if (error) return null;
+    return rowToItem(data);
+  }
+
+  async function addItem(data) {
+    const me = await currentUser();
     if (!me) return { ok: false, error: 'Log in to post an item.' };
     const title = String(data.title || '').trim();
     if (title.length < 3) return { ok: false, error: 'Give your item a short title (at least 3 characters).' };
     if (!CATEGORIES.some(c => c.id === data.category)) return { ok: false, error: 'Pick a category.' };
     if (!CONDITIONS.includes(data.condition)) return { ok: false, error: 'Pick a condition.' };
-    const item = {
-      id: uid('i'),
-      ownerId: me.id,
+
+    let imageUrl = null;
+    if (data.image) {
+      const path = me.id + '/' + Date.now() + '.jpg';
+      const { error: upErr } = await db.storage.from('item-photos')
+        .upload(path, dataURLtoBlob(data.image), { contentType: 'image/jpeg' });
+      if (upErr) return { ok: false, error: 'Photo upload failed: ' + upErr.message };
+      imageUrl = db.storage.from('item-photos').getPublicUrl(path).data.publicUrl;
+    }
+
+    const { data: row, error } = await db.from('items').insert({
+      owner_id: me.id,
       title,
       category: data.category,
       condition: data.condition,
       description: String(data.description || '').trim(),
-      image: data.image || null,
-      status: 'available',
-      createdAt: Date.now()
-    };
-    const list = items();
-    list.push(item);
-    try {
-      saveItems(list);
-    } catch (e) {
-      return { ok: false, error: 'Storage is full — try a smaller photo or remove an old item first.' };
-    }
-    return { ok: true, item };
+      image_url: imageUrl
+    }).select(ITEM_SELECT).single();
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, item: rowToItem(row) };
   }
 
-  function removeItem(id) {
-    const me = currentUser();
-    const list = items();
-    const item = list.find(i => i.id === id);
-    if (!item || !me || item.ownerId !== me.id) return { ok: false, error: 'You can only remove your own items.' };
-    saveItems(list.filter(i => i.id !== id));
-    const reqs = requestsAll().map(r =>
-      r.status === 'pending' && (r.itemId === id || r.offeredItemId === id)
-        ? Object.assign({}, r, { status: 'declined' })
-        : r
-    );
-    save(K.requests, reqs);
+  async function removeItem(id) {
+    const { error } = await db.from('items').delete().eq('id', id);
+    if (error) return { ok: false, error: error.message };
     return { ok: true };
   }
 
   /* ---------- swap requests ---------- */
 
-  const requestsAll = () => load(K.requests, []);
+  const REQUEST_SELECT = '*, ' +
+    'item:items!requests_item_id_fkey(*, owner:profiles(*)), ' +
+    'offered:items!requests_offered_item_id_fkey(*), ' +
+    'sender:profiles!requests_from_user_id_fkey(*)';
 
-  function createRequest(data) {
-    const me = currentUser();
+  async function createRequest(data) {
+    const me = await currentUser();
     if (!me) return { ok: false, error: 'Log in to request a swap.' };
-    const item = getItem(data.itemId);
+    const item = await getItem(data.itemId);
     if (!item || item.status !== 'available') return { ok: false, error: 'This item is no longer available.' };
     if (item.ownerId === me.id) return { ok: false, error: 'This is your own item.' };
-    const reqs = requestsAll();
-    if (reqs.some(r => r.itemId === data.itemId && r.fromUserId === me.id && r.status === 'pending')) {
-      return { ok: false, error: 'You already have a pending request for this item.' };
-    }
     const offeredItemId = data.offeredItemId || null;
     if (offeredItemId) {
-      const offered = getItem(offeredItemId);
+      const offered = await getItem(offeredItemId);
       if (!offered || offered.ownerId !== me.id || offered.status !== 'available') {
         return { ok: false, error: 'The item you offered is not available.' };
       }
     }
-    const req = {
-      id: uid('r'),
-      itemId: data.itemId,
-      fromUserId: me.id,
-      offeredItemId,
-      message: String(data.message || '').trim(),
-      status: 'pending',
-      createdAt: Date.now()
-    };
-    reqs.push(req);
-    save(K.requests, reqs);
-    return { ok: true, request: req };
-  }
-
-  function requestsForOwner(userId) {
-    const mine = new Set(items().filter(i => i.ownerId === userId).map(i => i.id));
-    return requestsAll().filter(r => mine.has(r.itemId)).sort((a, b) => b.createdAt - a.createdAt);
-  }
-
-  function requestsFrom(userId) {
-    return requestsAll().filter(r => r.fromUserId === userId).sort((a, b) => b.createdAt - a.createdAt);
-  }
-
-  function hasPendingRequest(itemId, userId) {
-    return requestsAll().some(r => r.itemId === itemId && r.fromUserId === userId && r.status === 'pending');
-  }
-
-  function acceptRequest(id) {
-    const me = currentUser();
-    if (!me) return { ok: false, error: 'Log in first.' };
-    const reqs = requestsAll();
-    const req = reqs.find(r => r.id === id);
-    if (!req || req.status !== 'pending') return { ok: false, error: 'This request is no longer pending.' };
-    const itemList = items();
-    const item = itemList.find(i => i.id === req.itemId);
-    if (!item || item.ownerId !== me.id) return { ok: false, error: 'Only the item owner can accept a request.' };
-    item.status = 'swapped';
-    if (req.offeredItemId) {
-      const offered = itemList.find(i => i.id === req.offeredItemId);
-      if (offered) offered.status = 'swapped';
-    }
-    req.status = 'accepted';
-    req.decidedAt = Date.now();
-    const swappedIds = new Set([req.itemId, req.offeredItemId].filter(Boolean));
-    reqs.forEach(r => {
-      if (r.id !== req.id && r.status === 'pending' && (swappedIds.has(r.itemId) || swappedIds.has(r.offeredItemId))) {
-        r.status = 'declined';
-      }
+    const { error } = await db.from('requests').insert({
+      item_id: data.itemId,
+      from_user_id: me.id,
+      offered_item_id: offeredItemId,
+      message: String(data.message || '').trim()
     });
-    saveItems(itemList);
-    save(K.requests, reqs);
+    if (error) {
+      if (error.code === '23505') return { ok: false, error: 'You already have a pending request for this item.' };
+      return { ok: false, error: error.message };
+    }
     return { ok: true };
   }
 
-  function declineRequest(id) {
-    const me = currentUser();
-    const reqs = requestsAll();
-    const req = reqs.find(r => r.id === id);
-    if (!req || req.status !== 'pending') return { ok: false, error: 'This request is no longer pending.' };
-    const item = getItem(req.itemId);
-    const isOwner = me && item && item.ownerId === me.id;
-    const isSender = me && req.fromUserId === me.id;
-    if (!isOwner && !isSender) return { ok: false, error: 'You are not part of this request.' };
-    req.status = isSender ? 'cancelled' : 'declined';
-    req.decidedAt = Date.now();
-    save(K.requests, reqs);
+  /* Everything the logged-in student is part of, split into
+     requests for their items and requests they sent. */
+  async function myRequests() {
+    const me = await currentUser();
+    if (!me) return { incoming: [], sent: [] };
+    const { data, error } = await db.from('requests')
+      .select(REQUEST_SELECT)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('myRequests:', error.message);
+      return { incoming: [], sent: [] };
+    }
+    const rows = data.map(rowToRequest);
+    return {
+      incoming: rows.filter(r => r.item && r.item.ownerId === me.id),
+      sent: rows.filter(r => r.fromUserId === me.id)
+    };
+  }
+
+  async function hasPendingRequest(itemId) {
+    const me = await currentUser();
+    if (!me) return false;
+    const { count } = await db.from('requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('item_id', itemId)
+      .eq('from_user_id', me.id)
+      .eq('status', 'pending');
+    return (count || 0) > 0;
+  }
+
+  async function acceptRequest(id) {
+    const { error } = await db.rpc('accept_request', { req_id: id });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  }
+
+  async function declineRequest(id) {
+    const { error } = await db.rpc('decline_request', { req_id: id });
+    if (error) return { ok: false, error: error.message };
     return { ok: true };
   }
 
   /* ---------- stats ---------- */
 
-  function stats() {
-    return {
-      members: users().length,
-      listed: items().length,
-      swaps: requestsAll().filter(r => r.status === 'accepted').length
-    };
+  async function stats() {
+    const { data, error } = await db.rpc('site_stats');
+    if (error) {
+      console.error('stats:', error.message);
+      return { members: 0, listed: 0, swaps: 0 };
+    }
+    return data;
   }
 
   return {
     CATEGORIES, CONDITIONS, GRADES,
-    signUp, logIn, logOut, currentUser, getUser,
+    signUp, logIn, logOut, currentUser,
     listItems, getItem, addItem, removeItem,
-    createRequest, requestsForOwner, requestsFrom, hasPendingRequest,
+    createRequest, myRequests, hasPendingRequest,
     acceptRequest, declineRequest,
     stats
   };
