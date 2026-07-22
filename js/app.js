@@ -128,6 +128,8 @@ const UI = (() => {
     if (!el) return;
     el.innerHTML = `
       <div class="footer-inner">
+        <span class="aero-deco swim" data-deco="golden-fish" title="golden fish" style="left:3%;top:22%;font-size:2.4rem" aria-hidden="true">🐠</span>
+        <span class="aero-deco sway" data-deco="coconut-tree" title="coconut tree" style="right:2%;bottom:-4px;font-size:3.6rem" aria-hidden="true">🌴</span>
         <p><strong>Swap, Share, Sustain</strong> — a student project for a school that wastes less.</p>
         <p class="footer-small">Items are exchanged in person at school. Be kind, be honest, and check items before you swap.</p>
       </div>`;

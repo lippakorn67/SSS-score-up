@@ -286,7 +286,7 @@ p{margin:0 0 1em}
 
 /* ---------- sections ---------- */
 
-.section{padding:72px 20px}
+.section{padding:72px 20px;position:relative}
 .section-inner{max-width:1100px;margin:0 auto}
 .section-alt{
   background:rgba(255,255,255,.42);
@@ -861,6 +861,19 @@ a.pair-side:hover{border-color:var(--aqua)}
 .footer-inner strong{color:#fff}
 .footer-small{font-size:.85rem;color:#93B5C6}
 
+/* ---------- Aero scene decorations ---------- */
+/* Emoji placeholders for real Frutiger Aero elements (coconut trees,
+   golden fish, old computers, matcha…). They sit behind the content
+   (z-index:-1) so they never block anything. Swap the emoji for an
+   <img> at the same position when the real artwork arrives. */
+
+.aero-deco{
+  position:absolute;z-index:-1;pointer-events:none;user-select:none;
+  line-height:1;filter:drop-shadow(0 8px 12px rgba(18,90,135,.28));opacity:.95;
+}
+.aero-deco.sway{transform-origin:bottom center}
+.aero-deco img{width:1em;height:auto;display:block}
+
 /* ---------- motion ---------- */
 /* Everything here sits behind prefers-reduced-motion, so people who
    turn animations off get a calm, fully working page. */
@@ -893,6 +906,10 @@ a.pair-side:hover{border-color:var(--aqua)}
   /* bubbles bob gently, sparkles twinkle */
   body::before{animation:floatbubbles 20s ease-in-out infinite}
   body::after{animation:twinkle 4.5s ease-in-out infinite}
+
+  /* scene decorations: fish swim, trees & leaves sway */
+  .aero-deco.swim{animation:swim 9s ease-in-out infinite}
+  .aero-deco.sway{animation:sway 7s ease-in-out infinite}
 
   /* item cards deal onto the board, gently staggered */
   .item-grid .item-card{animation:cardin .5s ease both}
@@ -963,6 +980,8 @@ a.pair-side:hover{border-color:var(--aqua)}
 @keyframes clouddrift{0%,100%{transform:translate(0,0)}50%{transform:translate(12px,-7px)}}
 @keyframes floatbubbles{0%,100%{transform:translateY(0)}50%{transform:translateY(-26px)}}
 @keyframes twinkle{0%,100%{opacity:.45}50%{opacity:.95}}
+@keyframes swim{0%,100%{transform:translate(0,0) rotate(0)}50%{transform:translate(22px,-8px) rotate(4deg)}}
+@keyframes sway{0%,100%{transform:rotate(-2.5deg)}50%{transform:rotate(2.5deg)}}
 
 /* ---------- responsive ---------- */
 
