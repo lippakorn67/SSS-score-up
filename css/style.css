@@ -66,7 +66,7 @@
 *,*::before,*::after{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{
-  margin:0;min-height:100vh;
+  margin:0;min-height:100vh;position:relative;
   font-family:var(--font-body);
   font-size:16px;
   line-height:1.6;
@@ -873,6 +873,34 @@ a.pair-side:hover{border-color:var(--aqua)}
 }
 .aero-deco.sway{transform-origin:bottom center}
 .aero-deco img{width:1em;height:auto;display:block}
+
+/* ---------- the scene (admin-editable background pictures) ---------- */
+
+#aero-scene{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+.scene-img{
+  position:absolute;transform:translate(-50%,-50%);
+  user-select:none;-webkit-user-drag:none;
+  filter:drop-shadow(0 8px 14px rgba(18,90,135,.28));
+}
+/* edit mode: raise the scene so the admin can grab the pictures */
+#aero-scene.editing{z-index:60;pointer-events:auto;overflow:visible}
+#aero-scene.editing .scene-img{
+  pointer-events:auto;cursor:grab;
+  outline:2px dashed rgba(23,137,198,.65);outline-offset:5px;border-radius:10px;
+}
+#aero-scene.editing .scene-img:active{cursor:grabbing}
+.scene-img.sel{outline:3px solid var(--aqua) !important}
+.scene-bar{position:fixed;left:16px;bottom:16px;z-index:90;display:flex;gap:8px;align-items:center}
+.scene-sel-tools{
+  position:absolute;z-index:95;transform:translateX(-50%);
+  display:flex;gap:4px;align-items:center;
+  background:rgba(255,255,255,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.75);border-radius:999px;
+  padding:5px 9px;box-shadow:var(--shadow-sm);
+}
+[data-theme="dark"] .scene-sel-tools{background:rgba(24,46,62,.92);border-color:rgba(120,170,200,.3)}
+.scene-sel-tools button{border:0;background:none;font-size:1.05rem;cursor:pointer;padding:3px 5px;border-radius:8px}
+.scene-sel-tools button:hover{background:rgba(23,137,198,.14)}
 
 /* ---------- motion ---------- */
 /* Everything here sits behind prefers-reduced-motion, so people who

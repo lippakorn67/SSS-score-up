@@ -554,6 +554,50 @@ const SSS = (() => {
     return { ok: true };
   }
 
+  /* ---------- scene decorations (admin's live visual editor) ---------- */
+
+  const rowToDecoration = (r) => r ? {
+    id: r.id, page: r.page, src: r.src,
+    x: Number(r.x), y: Number(r.y), w: Number(r.w)
+  } : null;
+
+  async function listDecorations(page) {
+    const { data, error } = await db.from('decorations')
+      .select('*').eq('page', page).order('created_at', { ascending: true });
+    if (error) return [];
+    return data.map(rowToDecoration);
+  }
+
+  async function uploadDecorImage(dataUrl) {
+    const blob = dataURLtoBlob(dataUrl);
+    const ext = blob.type === 'image/png' ? '.png' : '.jpg';
+    const path = 'decor/' + Date.now() + ext;
+    const { error } = await db.storage.from('item-photos')
+      .upload(path, blob, { contentType: blob.type });
+    if (error) return { ok: false, error: 'Upload failed: ' + error.message };
+    return { ok: true, url: db.storage.from('item-photos').getPublicUrl(path).data.publicUrl };
+  }
+
+  async function addDecoration(deco) {
+    const { data, error } = await db.from('decorations').insert({
+      page: deco.page, src: deco.src, x: deco.x, y: deco.y, w: deco.w
+    }).select('*').single();
+    if (error) return { ok: false, error: friendly(error) };
+    return { ok: true, decoration: rowToDecoration(data) };
+  }
+
+  async function updateDecoration(id, patch) {
+    const { error } = await db.from('decorations').update(patch).eq('id', id);
+    if (error) return { ok: false, error: friendly(error) };
+    return { ok: true };
+  }
+
+  async function removeDecoration(id) {
+    const { error } = await db.from('decorations').delete().eq('id', id);
+    if (error) return { ok: false, error: friendly(error) };
+    return { ok: true };
+  }
+
   /* ---------- moderation ---------- */
 
   /* Any student can flag an item for the moderators. */
@@ -654,6 +698,7 @@ const SSS = (() => {
     acceptRequest, declineRequest,
     listMessages, sendMessage, markThreadRead, notificationCounts,
     updateAvatar,
+    listDecorations, uploadDecorImage, addDecoration, updateDecoration, removeDecoration,
     listWishes, addWish, markWishFound, removeWish,
     rateSwap, ratingSummary, myBadges,
     listStickers, addSticker, removeSticker,

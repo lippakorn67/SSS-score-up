@@ -316,6 +316,32 @@ create policy "swap partners can rate each other"
     )
   );
 
+-- ---------- scene decorations -------------------------------
+-- Pictures the admin places on the website's background from the
+-- live scene editor (like Canva). Everyone sees them; only admins
+-- can add, move, resize or remove them.
+
+create table if not exists public.decorations (
+  id uuid primary key default gen_random_uuid(),
+  page text not null,
+  src text not null,
+  x numeric not null default 50 check (x >= 0 and x <= 100),
+  y numeric not null default 300 check (y >= 0),
+  w numeric not null default 140 check (w >= 20 and w <= 800),
+  created_at timestamptz not null default now()
+);
+
+alter table public.decorations enable row level security;
+
+drop policy if exists "decorations are visible to everyone" on public.decorations;
+create policy "decorations are visible to everyone"
+  on public.decorations for select using (true);
+
+drop policy if exists "admins manage decorations" on public.decorations;
+create policy "admins manage decorations"
+  on public.decorations for all
+  using (public.is_admin()) with check (public.is_admin());
+
 -- ---------- public stats ------------------------------------
 -- Lets the landing page show totals without exposing request rows.
 

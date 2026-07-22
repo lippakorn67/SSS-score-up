@@ -30,6 +30,7 @@ const UI = (() => {
     const me = await SSS.currentUser();
     header(active, me);
     footer();
+    scene(me).catch(err => console.error('scene:', err));
     if (me) {
       // fetch the notification badge after first paint so pages feel fast
       SSS.notificationCounts().then(n => {
@@ -78,6 +79,167 @@ const UI = (() => {
     return item.image
       ? `<img class="row-thumb" src="${esc(item.image)}" alt="">`
       : `<div class="row-thumb ph ph-${cat.id}">${cat.emoji}</div>`;
+  }
+
+  /* ---------- the scene: admin-editable background pictures ----------
+     Everyone sees the pictures; admins get a 🎨 Edit scene button to
+     add, drag, resize and remove them live — saved for the whole
+     school instantly. */
+  async function scene(me) {
+    const page = (location.pathname.split('/').pop() || 'index.html').replace('.html', '') || 'index';
+    let decos = await SSS.listDecorations(page);
+
+    let wrap = document.getElementById('aero-scene');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = 'aero-scene';
+      document.body.appendChild(wrap);
+    }
+    const render = () => {
+      wrap.innerHTML = decos.map(d =>
+        `<img class="scene-img" data-id="${esc(d.id)}" src="${esc(d.src)}" alt="" draggable="false"
+          style="left:${d.x}%;top:${d.y}px;width:${d.w}px">`
+      ).join('');
+    };
+    render();
+
+    if (!me || !me.isAdmin) return;
+
+    /* ----- editor (admins only; database rules enforce it too) ----- */
+    const bar = document.createElement('div');
+    bar.className = 'scene-bar';
+    bar.innerHTML = `
+      <button class="btn btn-small" id="scene-toggle" type="button">🎨 Edit scene</button>
+      <span id="scene-tools" hidden>
+        <label class="btn btn-outline btn-small" for="scene-file" style="cursor:pointer">➕ Add picture</label>
+        <input id="scene-file" type="file" accept="image/*" hidden>
+      </span>`;
+    document.body.appendChild(bar);
+
+    const tools = document.createElement('div');
+    tools.className = 'scene-sel-tools';
+    tools.hidden = true;
+    tools.innerHTML = `
+      <button data-act="smaller" title="Smaller" type="button">➖</button>
+      <button data-act="bigger" title="Bigger" type="button">➕</button>
+      <button data-act="del" title="Remove picture" type="button">🗑️</button>`;
+    document.body.appendChild(tools);
+
+    let editing = false;
+    let selected = null;
+
+    function positionTools(img) {
+      const r = img.getBoundingClientRect();
+      tools.style.left = (r.left + r.width / 2 + window.scrollX) + 'px';
+      tools.style.top = Math.max(8, r.top + window.scrollY - 48) + 'px';
+    }
+    function select(img) {
+      if (selected) selected.classList.remove('sel');
+      selected = img;
+      if (img) {
+        img.classList.add('sel');
+        positionTools(img);
+      }
+      tools.hidden = !img;
+    }
+    function findDeco(img) {
+      return decos.find(d => d.id === img.dataset.id);
+    }
+
+    document.getElementById('scene-toggle').addEventListener('click', () => {
+      editing = !editing;
+      wrap.classList.toggle('editing', editing);
+      document.getElementById('scene-tools').hidden = !editing;
+      document.getElementById('scene-toggle').textContent = editing ? '✅ Done' : '🎨 Edit scene';
+      if (!editing) select(null);
+      else toast('Scene editor on — drag pictures to move them, click one for more options.');
+    });
+
+    document.getElementById('scene-file').addEventListener('change', async e => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      try {
+        const dataUrl = await fileToDataURL(file, 800);
+        const up = await SSS.uploadDecorImage(dataUrl);
+        if (!up.ok) { toast(up.error, false); return; }
+        const r = await SSS.addDecoration({
+          page,
+          src: up.url,
+          x: 50,
+          y: Math.round(window.scrollY + window.innerHeight / 2),
+          w: 150
+        });
+        if (!r.ok) { toast(r.error, false); return; }
+        decos.push(r.decoration);
+        render();
+        select(wrap.querySelector(`[data-id="${r.decoration.id}"]`));
+        toast('Picture added — drag it where you want it. 🎨');
+      } catch (err) {
+        toast(err.message, false);
+      }
+    });
+
+    /* drag to move */
+    let drag = null;
+    wrap.addEventListener('pointerdown', e => {
+      if (!editing) return;
+      const img = e.target.closest('.scene-img');
+      if (!img) { select(null); return; }
+      e.preventDefault();
+      select(img);
+      drag = {
+        img,
+        startX: e.pageX, startY: e.pageY,
+        x: parseFloat(img.style.left), y: parseFloat(img.style.top)
+      };
+      img.setPointerCapture(e.pointerId);
+    });
+    wrap.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const nx = drag.x + (e.pageX - drag.startX) / document.documentElement.clientWidth * 100;
+      const ny = drag.y + (e.pageY - drag.startY);
+      drag.img.style.left = Math.min(100, Math.max(0, nx)) + '%';
+      drag.img.style.top = Math.max(0, ny) + 'px';
+      positionTools(drag.img);
+    });
+    const endDrag = async () => {
+      if (!drag) return;
+      const img = drag.img;
+      drag = null;
+      const deco = findDeco(img);
+      if (!deco) return;
+      deco.x = Math.round(parseFloat(img.style.left) * 100) / 100;
+      deco.y = Math.round(parseFloat(img.style.top));
+      const r = await SSS.updateDecoration(img.dataset.id, { x: deco.x, y: deco.y });
+      if (!r.ok) toast(r.error, false);
+    };
+    wrap.addEventListener('pointerup', endDrag);
+    wrap.addEventListener('pointercancel', endDrag);
+
+    /* resize + delete */
+    tools.addEventListener('click', async e => {
+      const btn = e.target.closest('button');
+      if (!btn || !selected) return;
+      const deco = findDeco(selected);
+      if (!deco) return;
+      if (btn.dataset.act === 'del') {
+        if (!confirm('Remove this picture from the scene?')) return;
+        const r = await SSS.removeDecoration(deco.id);
+        if (!r.ok) { toast(r.error, false); return; }
+        decos = decos.filter(d => d.id !== deco.id);
+        select(null);
+        render();
+        toast('Picture removed.');
+        return;
+      }
+      const factor = btn.dataset.act === 'bigger' ? 1.15 : 0.87;
+      deco.w = Math.round(Math.min(800, Math.max(20, deco.w * factor)));
+      selected.style.width = deco.w + 'px';
+      positionTools(selected);
+      const r = await SSS.updateDecoration(deco.id, { w: deco.w });
+      if (!r.ok) toast(r.error, false);
+    });
   }
 
   /* Scroll-triggered reveals: children of [data-reveal] containers
@@ -201,7 +363,10 @@ const UI = (() => {
           canvas.width = w;
           canvas.height = h;
           canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.82));
+          // PNGs keep their transparency (needed for scene decorations)
+          resolve(file.type === 'image/png'
+            ? canvas.toDataURL('image/png')
+            : canvas.toDataURL('image/jpeg', 0.82));
         };
         img.onerror = () => reject(new Error('That file does not look like an image.'));
         img.src = reader.result;
