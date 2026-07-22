@@ -1,2 +1,5 @@
 # Local Claude Code tooling (machine-specific paths)
 .claude/
+
+# Source bee GIF (10MB) — the optimized sprite lives in img/bee-sprite.png
+bee.png/
