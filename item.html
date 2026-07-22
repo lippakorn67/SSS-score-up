@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('sss_theme') || 'light';</script>
   <title>Item — Swap, Share, Sustain</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♻️%3C/text%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" href="img/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
@@ -48,6 +49,9 @@
       const isOwner = me && me.id === item.ownerId;
 
       let action = '';
+      let pending = null;
+      let myItems = [];
+      const rep = owner ? await SSS.ratingSummary(owner.id) : { count: 0, positive: 0 };
 
       if (isOwner) {
         action = `
@@ -68,17 +72,18 @@
         action = `
           <div class="swap-panel">
             <h2>Want this?</h2>
-            <p style="color:var(--ink-soft)">Log in with your school number to request a swap.</p>
+            <p style="color:var(--ink-soft)">Log in to request a swap.</p>
             <a class="btn" href="login.html?next=${encodeURIComponent('item.html?id=' + item.id)}">Log in to request</a>
           </div>`;
-      } else if (await SSS.hasPendingRequest(item.id)) {
+      } else if (pending = await SSS.pendingRequestFor(item.id)) {
         action = `
           <div class="swap-panel">
             <h2>Request sent ✓</h2>
-            <p style="color:var(--ink-soft);margin:0">Waiting for ${UI.esc(owner ? owner.name : 'the owner')} to answer. Track it on your <a href="profile.html">profile</a>.</p>
+            <p style="color:var(--ink-soft)">Waiting for ${UI.esc(owner ? owner.name : 'the owner')} to answer. Track it on your <a href="profile.html">profile</a>.</p>
+            <a class="btn btn-small" href="chat.html?request=${encodeURIComponent(pending.id)}">💬 Chat with ${UI.esc(owner ? owner.name : 'the owner')}</a>
           </div>`;
       } else {
-        const myItems = await SSS.listItems({ ownerId: me.id });
+        myItems = await SSS.listItems({ ownerId: me.id });
         const options = myItems.map(i =>
           `<option value="${UI.esc(i.id)}">${UI.esc(i.title)}</option>`
         ).join('');
@@ -92,6 +97,7 @@
                   <option value="">Nothing — just asking</option>
                   ${options}
                 </select>
+                <div id="offer-preview"></div>
                 ${myItems.length === 0 ? '<p class="hint">You haven\'t posted anything yet — you can still ask for the item.</p>' : ''}
               </div>
               <div class="field">
@@ -117,14 +123,27 @@
           </div>
           <p class="detail-desc">${UI.esc(item.description) || '<em>No description — ask the owner about it.</em>'}</p>
           <div class="owner-card">
-            <div class="avatar">${UI.esc((owner ? owner.name : '?').charAt(0).toUpperCase())}</div>
+            ${UI.avatar(owner)}
             <div>
               <div class="owner-name">${UI.esc(owner ? owner.name : 'A student')}</div>
               <div class="owner-meta">${UI.esc(owner ? owner.grade : '')}${owner ? ' · joined ' + UI.timeAgo(owner.joinedAt) : ''}</div>
+              ${rep.count ? `<div class="rep">👍 ${rep.positive}% positive · ${rep.count} rated swap${rep.count > 1 ? 's' : ''}</div>` : ''}
             </div>
+            ${me && !isOwner ? `<button id="report-btn" title="Report this item to the moderators" style="margin-left:auto;border:0;background:none;cursor:pointer;font:inherit;font-size:.85rem;font-weight:600;color:var(--ink-soft)">🚩 Report</button>` : ''}
           </div>
           ${action}
         </div>`;
+
+      const reportBtn = document.getElementById('report-btn');
+      if (reportBtn) {
+        reportBtn.addEventListener('click', async () => {
+          const reason = prompt('Why are you reporting this item? (You can leave it blank.)');
+          if (reason === null) return;
+          const r = await SSS.reportItem(item.id, reason);
+          if (r.ok) UI.toast('Reported — the moderators will take a look. 🚩');
+          else UI.toast(r.error, false);
+        });
+      }
 
       const removeBtn = document.getElementById('remove-btn');
       if (removeBtn) {
@@ -138,6 +157,18 @@
 
       const swapForm = document.getElementById('swap-form');
       if (swapForm) {
+        // show a photo of the item being offered as soon as it's picked
+        const offeredSelect = document.getElementById('offered');
+        const preview = document.getElementById('offer-preview');
+        offeredSelect.addEventListener('change', () => {
+          const chosen = myItems.find(i => i.id === offeredSelect.value);
+          preview.innerHTML = chosen
+            ? `${UI.itemThumb(chosen)}<span><span class="pair-label">you would give</span><span class="pair-title">${UI.esc(chosen.title)}</span></span>`
+            : '';
+          preview.style.display = chosen ? 'flex' : 'none';
+        });
+        preview.style.display = 'none';
+
         swapForm.addEventListener('submit', async e => {
           e.preventDefault();
           const btn = swapForm.querySelector('button[type="submit"]');
@@ -145,12 +176,12 @@
           btn.textContent = 'Sending…';
           const r = await SSS.createRequest({
             itemId: item.id,
-            offeredItemId: document.getElementById('offered').value || null,
+            offeredItemId: offeredSelect.value || null,
             message: document.getElementById('message').value
           });
           if (r.ok) {
-            UI.toast('Swap request sent — fingers crossed! 🤞');
-            await render();
+            // straight into the chat so the two students can plan the swap
+            location.href = 'chat.html?request=' + encodeURIComponent(r.requestId);
           } else {
             btn.disabled = false;
             btn.textContent = 'Send swap request';

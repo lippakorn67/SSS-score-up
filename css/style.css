@@ -23,6 +23,42 @@
   --font-hand:"Caveat","Segoe Script",cursive;
 }
 
+/* night mode: same notebook, after dark */
+[data-theme="dark"]{
+  --paper:#191E2D;
+  --paper-deep:#222941;
+  --card:#242B3F;
+  --ink:#E7EAF3;
+  --ink-soft:#98A1B8;
+  --line:#38405A;
+  --rule:#6B8FEF;
+  --red:#FF7B58;
+  --green:#3E9A67;
+  --green-deep:#2E7D4F;
+  --shadow:0 2px 12px rgba(0,0,0,.35);
+}
+[data-theme="dark"] .mark{color:#20293D}
+[data-theme="dark"] #site-header{background:rgba(25,30,45,.93)}
+[data-theme="dark"] .hero{background:repeating-linear-gradient(to bottom,transparent 0 34px,rgba(107,143,239,.18) 34px 36px),var(--paper)}
+[data-theme="dark"] .sticker-wall,
+[data-theme="dark"] .chat-thread{background:repeating-linear-gradient(to bottom,transparent 0 30px,rgba(107,143,239,.12) 30px 31px),#1F2536}
+[data-theme="dark"] .tab.active{background:var(--card)}
+[data-theme="dark"] .req-msg{background:#3B3620}
+[data-theme="dark"] .contact-box{background:#22301F}
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field select,
+[data-theme="dark"] .field textarea,
+[data-theme="dark"] .search,
+[data-theme="dark"] .wish-form input,
+[data-theme="dark"] .wish-form select,
+[data-theme="dark"] .chat-input textarea{background:#1D2334;color:var(--ink)}
+[data-theme="dark"] .chip-btn{background:var(--card);color:var(--ink)}
+[data-theme="dark"] .empty{background:rgba(36,43,63,.5)}
+[data-theme="dark"] .avatar-edit{background:var(--card)}
+[data-theme="dark"] .btn-outline{background:var(--card);color:var(--ink);border-color:var(--ink-soft);box-shadow:0 3px 0 var(--ink-soft)}
+[data-theme="dark"] .btn-danger{background:var(--card)}
+[data-theme="dark"] .photo-drop{background:var(--paper-deep)}
+
 *,*::before,*::after{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{
@@ -62,14 +98,15 @@ p{margin:0 0 1em}
 }
 .logo-badge{
   display:grid;place-items:center;flex:none;
-  width:38px;height:38px;border-radius:10px;
-  background:var(--green);color:#fff;
-  font-weight:800;font-size:1.05rem;
+  width:38px;height:38px;border-radius:9px;
+  background:#fff;object-fit:contain;
   transform:rotate(-4deg);
+  box-shadow:0 1px 4px rgba(32,41,61,.15);
 }
 .logo-word{font-size:1rem;letter-spacing:.01em}
 .nav-links{display:flex;align-items:center;gap:20px}
-.nav-links a{text-decoration:none;color:var(--ink);font-weight:600;font-size:.95rem}
+.nav-links a{text-decoration:none;color:var(--ink);font-weight:600;font-size:.95rem;transition:color .15s ease,box-shadow .2s ease}
+.nav-links a:not(.btn):hover{box-shadow:inset 0 -8px 0 rgba(255,228,92,.55)}
 .nav-links a[aria-current="page"]{box-shadow:inset 0 -9px 0 var(--highlight)}
 .nav-user{white-space:nowrap}
 
@@ -149,7 +186,7 @@ p{margin:0 0 1em}
 /* ---------- stats strip ---------- */
 
 .stats{max-width:1100px;margin:0 auto;padding:40px 20px 8px;display:flex;gap:56px;flex-wrap:wrap}
-.stat b{display:block;font-family:var(--font-display);font-size:2.4rem;font-weight:800;line-height:1.1}
+.stat b{display:block;font-family:var(--font-display);font-size:2.6rem;font-weight:800;line-height:1.1;color:var(--green)}
 .stat span{font-family:var(--font-hand);font-size:1.3rem;color:var(--ink-soft)}
 
 /* ---------- sections ---------- */
@@ -164,7 +201,7 @@ p{margin:0 0 1em}
 .step{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
 .step-num{
   display:grid;place-items:center;width:40px;height:40px;border-radius:50%;
-  background:var(--ink);color:var(--highlight);
+  background:#20293D;color:var(--highlight);
   font-family:var(--font-display);font-weight:800;font-size:1.1rem;
   margin-bottom:14px;
 }
@@ -180,7 +217,8 @@ p{margin:0 0 1em}
   transition:transform .12s ease,border-color .12s ease;
 }
 .cat-tile:hover{transform:translateY(-2px);border-color:var(--green)}
-.cat-tile .cat-emoji{font-size:1.3rem}
+.cat-tile .cat-emoji{font-size:1.3rem;transition:transform .18s ease}
+.cat-tile:hover .cat-emoji{transform:scale(1.22) rotate(-8deg)}
 
 .why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:36px}
 .why-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
@@ -417,12 +455,185 @@ p{margin:0 0 1em}
 .req-msg .hand-label{font-family:var(--font-hand);font-size:1.1rem;color:var(--ink-soft);margin-right:6px}
 .req-actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
 
+/* ---------- avatars ---------- */
+
+.avatar-img{object-fit:cover;padding:0;background:var(--paper-deep)}
+.nav-avatar{
+  display:inline-grid;place-items:center;vertical-align:middle;
+  width:26px;height:26px;border-radius:50%;margin-right:2px;
+  background:var(--green);color:#fff;
+  font-family:var(--font-display);font-weight:800;font-size:.8rem;
+}
+img.nav-avatar{object-fit:cover;background:var(--paper-deep)}
+.avatar-wrap{position:relative;flex:none}
+.avatar-edit{
+  position:absolute;right:-8px;bottom:-8px;
+  width:28px;height:28px;border-radius:50%;
+  border:1.5px solid var(--line);background:#fff;
+  cursor:pointer;font-size:.85rem;line-height:1;
+}
+.avatar-edit:hover{border-color:var(--green)}
+
+/* ---------- sticker wall ---------- */
+
+.sticker-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:22px}
+.sticker-pick{
+  width:46px;height:46px;font-size:1.4rem;
+  background:var(--card);border:1.5px solid var(--line);border-radius:10px;
+  cursor:pointer;transition:transform .1s ease;
+}
+.sticker-pick:hover{transform:scale(1.1)}
+.sticker-pick.active{border-color:var(--green);background:#E7F4EA;transform:scale(1.1)}
+.sticker-wall{
+  position:relative;min-height:340px;margin-top:16px;
+  border:1px solid var(--line);border-radius:var(--radius);
+  background:
+    repeating-linear-gradient(to bottom,transparent 0 30px,rgba(62,110,216,.12) 30px 31px),
+    #fff;
+  overflow:hidden;cursor:copy;
+  box-shadow:var(--shadow);
+}
+.sticker{
+  position:absolute;font-size:2rem;line-height:1;
+  transform:translate(-50%,-50%) rotate(var(--rot,0deg));
+  user-select:none;
+  filter:drop-shadow(1px 2px 1px rgba(32,41,61,.2));
+}
+.sticker-mine{cursor:pointer}
+.sticker-mine:hover{filter:drop-shadow(1px 2px 1px rgba(32,41,61,.2)) brightness(1.15)}
+.sticker-other{pointer-events:none}
+
+/* ---------- notifications ---------- */
+
+.notif{
+  display:inline-grid;place-items:center;
+  min-width:20px;height:20px;padding:0 6px;
+  border-radius:999px;background:var(--red);color:#fff;
+  font-size:.72rem;font-weight:800;line-height:1;
+  margin-left:6px;vertical-align:2px;
+}
+
+/* ---------- swap pair (photos in request cards) ---------- */
+
+.swap-pair{display:flex;align-items:stretch;gap:10px;margin-top:12px;flex-wrap:wrap}
+.pair-side{
+  display:flex;align-items:center;gap:10px;flex:1;min-width:180px;
+  background:var(--paper);border:1px solid var(--line);border-radius:10px;
+  padding:8px 12px 8px 8px;text-decoration:none;color:var(--ink);
+}
+a.pair-side:hover{border-color:var(--green)}
+.pair-label{display:block;font-size:.72rem;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+.pair-title{font-weight:700;font-size:.92rem;line-height:1.3}
+.pair-arrow{align-self:center;font-size:1.4rem;color:var(--ink-soft);flex:none}
+.pair-none{display:grid;place-items:center;width:56px;height:56px;font-size:1.5rem;flex:none}
+
+/* ---------- offered item preview (item page) ---------- */
+
+.offer-preview{
+  display:flex;align-items:center;gap:10px;margin-top:10px;
+  background:var(--paper);border:1px dashed var(--line);border-radius:10px;
+  padding:8px;
+}
+.offer-preview .pair-label{margin-bottom:2px}
+
+/* ---------- chat ---------- */
+
+.chat-wrap{max-width:760px;margin:0 auto;padding:16px 20px 80px}
+.chat-card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.chat-head{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 18px;border-bottom:1px solid var(--line);
+  background:var(--paper-deep);
+}
+.chat-head .chat-partner{font-weight:700}
+.chat-head .chat-partner-meta{font-size:.83rem;color:var(--ink-soft)}
+.chat-pair{padding:12px 18px 4px}
+.chat-pair .swap-pair{margin-top:0}
+.chat-thread{
+  display:flex;flex-direction:column;gap:10px;
+  padding:18px;min-height:280px;max-height:52vh;overflow-y:auto;
+  background:
+    repeating-linear-gradient(to bottom,transparent 0 30px,rgba(62,110,216,.08) 30px 31px),
+    #fff;
+}
+.msg{
+  max-width:78%;padding:9px 14px;border-radius:14px;
+  font-size:.95rem;line-height:1.45;
+  overflow-wrap:break-word;white-space:pre-line;
+}
+.msg-mine{align-self:flex-end;background:var(--green);color:#fff;border-bottom-right-radius:4px}
+.msg-theirs{align-self:flex-start;background:var(--paper-deep);border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg-time{display:block;font-size:.68rem;opacity:.7;margin-top:3px}
+.chat-empty{margin:auto;text-align:center;color:var(--ink-soft);font-family:var(--font-hand);font-size:1.35rem;transform:rotate(-1deg)}
+.chat-input{display:flex;gap:10px;padding:14px;border-top:1px solid var(--line);align-items:flex-end}
+.chat-input textarea{
+  flex:1;resize:none;height:48px;padding:12px;
+  border:1.5px solid var(--line);border-radius:10px;font:inherit;
+}
+.chat-input textarea:focus{border-color:var(--rule)}
+.chat-note{max-width:760px;margin:10px auto 0;padding:0 20px;font-size:.83rem;color:var(--ink-soft)}
+
+/* ---------- theme toggle ---------- */
+
+.theme-btn{
+  border:0;background:none;cursor:pointer;
+  font-size:1.15rem;line-height:1;padding:4px;
+  border-radius:8px;
+}
+.theme-btn:hover{background:var(--paper-deep)}
+
+/* ---------- wishlist ---------- */
+
+.wish-form{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 8px}
+.wish-form input{
+  flex:2;min-width:220px;padding:11px 14px;
+  border:1.5px solid var(--line);border-radius:10px;
+  font:inherit;background:var(--card);color:var(--ink);
+}
+.wish-form select{
+  flex:1;min-width:150px;padding:11px 12px;
+  border:1.5px solid var(--line);border-radius:10px;
+  font:inherit;background:var(--card);color:var(--ink);
+}
+.wish-form input:focus,.wish-form select:focus{border-color:var(--rule)}
+.wish-thumb{
+  width:56px;height:56px;border-radius:10px;flex:none;
+  display:grid;place-items:center;font-size:1.6rem;
+}
+
+/* ---------- badges ---------- */
+
+.badge-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}
+.badge-card{
+  display:flex;align-items:center;gap:12px;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:10px 16px;min-width:200px;
+}
+.badge-card .badge-emoji{font-size:1.8rem}
+.badge-card b{display:block;font-size:.95rem}
+.badge-card span{font-size:.8rem;color:var(--ink-soft)}
+.badge-card.locked{opacity:.45;filter:grayscale(.85)}
+
+/* ---------- swap ratings ---------- */
+
+.rate-row{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.rate-btn{
+  font-size:1.25rem;width:44px;height:44px;
+  background:var(--card);border:1.5px solid var(--line);border-radius:10px;
+  cursor:pointer;transition:transform .1s ease,border-color .1s ease;
+}
+.rate-btn:hover{border-color:var(--green);transform:scale(1.1)}
+.rep{font-size:.85rem;color:var(--ink-soft);font-weight:600}
+
 /* ---------- toast ---------- */
 
 .toast{
   position:fixed;left:50%;bottom:28px;z-index:100;
   transform:translate(-50%,20px);
-  background:var(--ink);color:#fff;
+  background:#20293D;color:#fff;
   padding:12px 20px;border-radius:12px;
   font-weight:600;max-width:90vw;
   opacity:0;pointer-events:none;
@@ -433,15 +644,18 @@ p{margin:0 0 1em}
 
 /* ---------- footer ---------- */
 
-#site-footer{background:var(--ink);color:#C9D0DF;margin-top:0}
+#site-footer{background:#171C2A;color:#C9D0DF;margin-top:0}
 .footer-inner{max-width:1100px;margin:0 auto;padding:36px 20px}
 .footer-inner p{margin:0 0 6px}
 .footer-inner strong{color:#fff}
 .footer-small{font-size:.85rem;color:#8B94A8}
 
 /* ---------- motion ---------- */
+/* Everything here sits behind prefers-reduced-motion, so people who
+   turn animations off get a calm, fully working page. */
 
 @media (prefers-reduced-motion:no-preference){
+  /* page-load moment on the hero */
   .hero h1,.hero-sub,.hero-actions{animation:rise .6s ease both}
   .hero-sub{animation-delay:.08s}
   .hero-actions{animation-delay:.16s}
@@ -450,9 +664,84 @@ p{margin:0 0 1em}
   .deck .item-card:nth-child(2){animation-delay:.25s}
   .deck .item-card:nth-child(3){animation-delay:.35s}
   .deck-note{animation-delay:.5s}
+
+  /* the highlighter swipes across "Sustain." after the title lands.
+     Uses "both" fill so that if the animation never runs, the mark
+     falls back to its default full highlight rather than vanishing. */
+  .hero h1 .mark{
+    background-repeat:no-repeat;
+    animation:markwipe .8s ease-out .8s both;
+  }
+
+  /* the logo's bee drifts across the hero */
+  .hero-bee{animation:beefly 26s linear 2s infinite}
+
+  /* item cards deal onto the board, gently staggered */
+  .item-grid .item-card{animation:cardin .5s ease both}
+  .item-grid .item-card:nth-child(2){animation-delay:.05s}
+  .item-grid .item-card:nth-child(3){animation-delay:.1s}
+  .item-grid .item-card:nth-child(4){animation-delay:.15s}
+  .item-grid .item-card:nth-child(5){animation-delay:.2s}
+  .item-grid .item-card:nth-child(6){animation-delay:.25s}
+  .item-grid .item-card:nth-child(7){animation-delay:.3s}
+  .item-grid .item-card:nth-child(n+8){animation-delay:.35s}
+
+  /* badges bounce in on the profile */
+  .badge-card{animation:cardin .45s ease both}
+  .badge-card:nth-child(2){animation-delay:.06s}
+  .badge-card:nth-child(3){animation-delay:.12s}
+  .badge-card:nth-child(4){animation-delay:.18s}
+  .badge-card:nth-child(5){animation-delay:.24s}
+  .badge-card:nth-child(6){animation-delay:.3s}
+  .badge-card:not(.locked){animation:cardin .45s ease both,glow 2.6s ease-in-out infinite}
+
+  /* stickers pop onto the wall */
+  .sticker{animation:pop .35s cubic-bezier(.5,1.6,.4,1) both}
+
+  /* the newest chat message slides in */
+  .msg:last-child{animation:msgin .3s ease}
+
+  /* the notification badge waves hello, three times only */
+  .notif{animation:pulse 2.2s ease 1.2s 3}
+
+  /* the logo wobbles when you hover it */
+  .logo:hover .logo-badge{animation:wobble .55s ease}
+
+  /* scroll-triggered reveals (children of [data-reveal] containers) */
+  .reveal{opacity:0;transform:translateY(16px);transition:opacity .55s ease,transform .55s ease}
+  .reveal.in{opacity:1;transform:none}
 }
+
+.hero-bee{
+  position:absolute;top:22%;left:-60px;
+  font-size:1.5rem;pointer-events:none;opacity:0;
+  z-index:1;
+}
+
 @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes markwipe{from{background-size:0% 100%}to{background-size:100% 100%}}
+@keyframes cardin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes msgin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+@keyframes wobble{0%,100%{transform:rotate(-4deg)}30%{transform:rotate(6deg)}60%{transform:rotate(-10deg)}}
+@keyframes pop{
+  from{opacity:0;transform:translate(-50%,-50%) rotate(var(--rot,0deg)) scale(.2)}
+  to{opacity:1;transform:translate(-50%,-50%) rotate(var(--rot,0deg)) scale(1)}
+}
+@keyframes beefly{
+  0%{transform:translate(0,0) rotate(10deg);opacity:0}
+  4%{opacity:1}
+  22%{transform:translate(24vw,55px) rotate(-8deg)}
+  45%{transform:translate(52vw,-15px) rotate(12deg)}
+  70%{transform:translate(78vw,45px) rotate(-10deg)}
+  92%{opacity:1}
+  100%{transform:translate(108vw,-20px) rotate(8deg);opacity:0}
+}
+@keyframes glow{
+  0%,100%{box-shadow:0 0 0 rgba(46,125,79,0)}
+  50%{box-shadow:0 0 14px rgba(46,125,79,.28)}
+}
 
 /* ---------- responsive ---------- */
 

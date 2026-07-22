@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('sss_theme') || 'light';</script>
+  <title>Chat — Swap, Share, Sustain</title>
+  <link rel="icon" type="image/png" href="img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div style="max-width:760px;margin:0 auto">
+      <a class="back-link" href="profile.html">← Back to your profile</a>
+    </div>
+    <div class="chat-wrap" id="chat-wrap">
+      <p style="color:var(--ink-soft)">Loading…</p>
+    </div>
+    <p class="chat-note">💡 Agree on a time and place at school, check the items together, then swap. New messages appear automatically.</p>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (async () => {
+      const me = await UI.init();
+      if (!UI.requireLogin(me)) return;
+
+      const wrap = document.getElementById('chat-wrap');
+      const reqId = UI.qs('request');
+      const req = await SSS.getRequest(reqId);
+
+      if (!req || !req.item) {
+        wrap.innerHTML = `<div class="empty">
+          <p><strong>This chat doesn't exist.</strong></p>
+          <p>The swap request may have been removed. <a href="profile.html">Back to your profile</a>.</p>
+        </div>`;
+        return;
+      }
+
+      const iAmOwner = req.item.ownerId === me.id;
+      const iAmSender = req.fromUserId === me.id;
+      if (!iAmOwner && !iAmSender) {
+        wrap.innerHTML = `<div class="empty">
+          <p><strong>This chat is private.</strong></p>
+          <p>Only the two students in the swap can read it. <a href="profile.html">Back to your profile</a>.</p>
+        </div>`;
+        return;
+      }
+
+      const partner = iAmOwner ? req.sender : req.item.owner;
+      document.title = 'Chat with ' + (partner ? partner.name : 'a student') + ' — Swap, Share, Sustain';
+
+      const statusLabel = { pending: 'Pending', accepted: 'Accepted', declined: 'Declined', cancelled: 'Cancelled' }[req.status] || req.status;
+      const wantLabel = iAmOwner ? 'they want' : 'you want';
+      const offerLabel = iAmOwner ? 'they offer' : 'you offer';
+
+      const pairSide = (item, label) => item
+        ? `<a class="pair-side" href="item.html?id=${encodeURIComponent(item.id)}">
+             ${UI.itemThumb(item)}
+             <span><span class="pair-label">${label}</span><span class="pair-title">${UI.esc(item.title)}</span></span>
+           </a>`
+        : `<span class="pair-side">
+             <span class="pair-none">🤲</span>
+             <span><span class="pair-label">${label}</span><span class="pair-title">Nothing — just asking</span></span>
+           </span>`;
+
+      wrap.innerHTML = `
+        <div class="chat-card">
+          <div class="chat-head">
+            ${UI.avatar(partner)}
+            <div>
+              <div class="chat-partner">${UI.esc(partner ? partner.name : 'A student')}</div>
+              <div class="chat-partner-meta">${UI.esc(partner ? partner.grade : '')}${partner && partner.schoolNumber ? ' · school number ' + UI.esc(partner.schoolNumber) : ''}</div>
+            </div>
+            <span class="badge badge-${req.status}" style="margin-left:auto">${statusLabel}</span>
+          </div>
+          <div class="chat-pair">
+            <div class="swap-pair">
+              ${pairSide(req.item, wantLabel)}
+              <span class="pair-arrow">⇄</span>
+              ${pairSide(req.offered, offerLabel)}
+            </div>
+          </div>
+          <div class="chat-thread" id="thread"></div>
+          <form class="chat-input" id="chat-form">
+            <textarea id="chat-text" maxlength="500" placeholder="Plan where and when to meet at school…" aria-label="Message"></textarea>
+            <button class="btn" type="submit">Send</button>
+          </form>
+        </div>`;
+
+      const thread = document.getElementById('thread');
+      const form = document.getElementById('chat-form');
+      const textarea = document.getElementById('chat-text');
+      let lastKey = null;
+
+      async function refresh() {
+        const msgs = await SSS.listMessages(req.id);
+        const key = msgs.map(m => m.id).join(',');
+        if (key === lastKey) return;
+        lastKey = key;
+        thread.innerHTML = msgs.length
+          ? msgs.map(m => `
+              <div class="msg ${m.senderId === me.id ? 'msg-mine' : 'msg-theirs'}">${UI.esc(m.body)}<span class="msg-time">${UI.timeAgo(m.createdAt)}</span></div>`).join('')
+          : `<p class="chat-empty">say hi and plan the swap 👋</p>`;
+        thread.scrollTop = thread.scrollHeight;
+        if (msgs.some(m => m.senderId !== me.id && !m.readAt)) {
+          SSS.markThreadRead(req.id);
+        }
+      }
+
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const body = textarea.value;
+        if (!body.trim()) return;
+        textarea.value = '';
+        const r = await SSS.sendMessage(req.id, body);
+        if (!r.ok) {
+          textarea.value = body;
+          UI.toast(r.error, false);
+          return;
+        }
+        await refresh();
+        textarea.focus();
+      });
+
+      // Enter sends, Shift+Enter makes a new line
+      textarea.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          form.requestSubmit();
+        }
+      });
+
+      await refresh();
+      setInterval(refresh, 4000);
+    })();
+  </script>
+</body>
+</html>

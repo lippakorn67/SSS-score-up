@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('sss_theme') || 'light';</script>
   <title>Swap, Share, Sustain — the school swap shop</title>
   <meta name="description" content="Swap, Share, Sustain lets students exchange reusable books, stationery and uniforms within the school community — save money, waste less.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♻️%3C/text%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" href="img/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
@@ -16,6 +17,7 @@
 
   <main>
     <section class="hero">
+      <span class="hero-bee" aria-hidden="true">🐝</span>
       <div class="hero-inner">
         <div class="hero-copy">
           <p class="eyebrow">run by students, for students</p>
@@ -23,7 +25,7 @@
           <p class="hero-sub">The school's own swap shop. Trade the textbooks, uniforms and stationery you've outgrown with students who need them — no money, no waste.</p>
           <div class="hero-actions">
             <a class="btn" href="browse.html">Browse items</a>
-            <a class="btn btn-outline" href="login.html?tab=signup">Join with your school number</a>
+            <a class="btn btn-outline" href="login.html?tab=signup">Join with your email</a>
           </div>
         </div>
         <div class="deck" id="hero-deck" aria-label="Recently posted items"></div>
@@ -40,11 +42,11 @@
       <div class="section-inner">
         <h2>How a swap works</h2>
         <p class="section-lead">From your shelf to someone's schoolbag in four steps.</p>
-        <div class="steps">
+        <div class="steps" data-reveal>
           <div class="step">
             <div class="step-num">1</div>
             <h3>Create your account</h3>
-            <p>Sign up with your school number, so everyone you trade with is a real student here.</p>
+            <p>Sign up with your email — students, teachers and staff are all welcome to swap.</p>
           </div>
           <div class="step">
             <div class="step-num">2</div>
@@ -69,14 +71,14 @@
       <div class="section-inner">
         <h2>What's moving around school</h2>
         <p class="section-lead">Everything on the board fits in a schoolbag — and deserves a second owner.</p>
-        <div class="cat-row" id="cat-row"></div>
+        <div class="cat-row" id="cat-row" data-reveal></div>
       </div>
     </section>
 
     <section class="section">
       <div class="section-inner">
         <h2>Why it matters</h2>
-        <div class="why-grid">
+        <div class="why-grid" data-reveal>
           <div class="why-card">
             <span class="why-emoji">💸</span>
             <h3>Save money</h3>
@@ -98,8 +100,19 @@
 
     <section class="section section-alt">
       <div class="section-inner">
+        <span class="eyebrow">leave your mark</span>
+        <h2>The sticker wall</h2>
+        <p class="section-lead">Every student gets 5 stickers. Pick one, click anywhere on the wall, and it stays there for the whole school to see.</p>
+        <div class="sticker-toolbar" id="sticker-toolbar"></div>
+        <div class="sticker-wall" id="sticker-wall" aria-label="Community sticker wall"></div>
+        <p class="hint" id="sticker-hint" style="margin-top:8px"></p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-inner">
         <h2>Why we built this</h2>
-        <div class="story-grid">
+        <div class="story-grid" data-reveal>
           <div>
             <p>We were inspired by eBay, where second-hand things find new owners every day — and we wondered why that couldn't happen inside a school. So much of what students buy is used for one year, one term, or one growth spurt, and then sits in a cupboard.</p>
           </div>
@@ -128,16 +141,34 @@
   <script src="js/app.js"></script>
   <script>
     (async () => {
-      await UI.init('home');
+      const me = await UI.init('home');
 
       document.getElementById('cat-row').innerHTML = SSS.CATEGORIES.map(c =>
         `<a class="cat-tile" href="browse.html?cat=${c.id}"><span class="cat-emoji">${c.emoji}</span>${c.label}</a>`
       ).join('');
 
+      UI.reveals();
+
+      /* stat numbers count up from zero */
+      function countUp(el, target) {
+        if (!window.matchMedia('(prefers-reduced-motion: no-preference)').matches || !target) {
+          el.textContent = target;
+          return;
+        }
+        const start = performance.now();
+        const duration = 900;
+        const tick = (now) => {
+          const p = Math.min(1, (now - start) / duration);
+          el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
+          if (p < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+
       const [stats, newest] = await Promise.all([SSS.stats(), SSS.listItems()]);
-      document.getElementById('stat-listed').textContent = stats.listed;
-      document.getElementById('stat-swaps').textContent = stats.swaps;
-      document.getElementById('stat-members').textContent = stats.members;
+      countUp(document.getElementById('stat-listed'), stats.listed);
+      countUp(document.getElementById('stat-swaps'), stats.swaps);
+      countUp(document.getElementById('stat-members'), stats.members);
 
       const deck = document.getElementById('hero-deck');
       const top = newest.slice(0, 3);
@@ -145,6 +176,71 @@
         ? top.map(UI.itemCard).join('') + '<p class="deck-note">↑ real items posted by students</p>'
         : `<div class="empty"><p><strong>The board is brand new.</strong></p>
            <p><a href="upload.html">Post the first item</a> and it will show up right here.</p></div>`;
+
+      /* ----- the sticker wall ----- */
+      const WALL_EMOJIS = ['♻️','🌱','🌏','💚','⭐','✨','📚','✏️','🎒','⚽','🎨','🎧','🍀','🌈','🐢','🤝'];
+      const wall = document.getElementById('sticker-wall');
+      const toolbar = document.getElementById('sticker-toolbar');
+      const hint = document.getElementById('sticker-hint');
+      let chosen = WALL_EMOJIS[0];
+      let lastKey = null;
+
+      toolbar.innerHTML = WALL_EMOJIS.map((e, i) =>
+        `<button class="sticker-pick${i === 0 ? ' active' : ''}" data-emoji="${e}" title="Stick ${e}" type="button">${e}</button>`
+      ).join('');
+      toolbar.addEventListener('click', e => {
+        const btn = e.target.closest('.sticker-pick');
+        if (!btn) return;
+        chosen = btn.dataset.emoji;
+        toolbar.querySelectorAll('.sticker-pick').forEach(b => b.classList.toggle('active', b === btn));
+      });
+
+      async function renderWall() {
+        const stickers = await SSS.listStickers();
+        const key = stickers.map(s => s.id).join(',');
+        if (key !== lastKey) {
+          lastKey = key;
+          wall.innerHTML = stickers.map(s => {
+            const canRemove = me && (s.userId === me.id || me.isAdmin);
+            return `<span class="sticker ${canRemove ? 'sticker-mine' : 'sticker-other'}"
+              style="left:${s.x}%;top:${s.y}%;--rot:${s.rot}deg"
+              data-id="${UI.esc(s.id)}"
+              title="${UI.esc(s.ownerName)}${canRemove ? ' — click to remove' : ''}">${UI.esc(s.emoji)}</span>`;
+          }).join('');
+        }
+        if (me) {
+          const mine = stickers.filter(s => s.userId === me.id).length;
+          hint.textContent = 'You have ' + Math.max(0, 5 - mine) + ' of 5 stickers left. Click one of yours to take it back.'
+            + (me.isAdmin ? ' As admin, you can remove anyone\'s sticker.' : '');
+        } else {
+          hint.innerHTML = '<a href="login.html">Log in</a> to stick yours.';
+        }
+      }
+
+      wall.addEventListener('click', async e => {
+        const stuck = e.target.closest('.sticker-mine');
+        if (stuck) {
+          if (!confirm('Remove this sticker?')) return;
+          const r = await SSS.removeSticker(stuck.dataset.id);
+          if (r.ok) { lastKey = null; renderWall(); }
+          else UI.toast(r.error, false);
+          return;
+        }
+        if (!me) {
+          UI.toast('Log in to stick a sticker!', false);
+          return;
+        }
+        const rect = wall.getBoundingClientRect();
+        const x = Math.min(97, Math.max(3, ((e.clientX - rect.left) / rect.width) * 100));
+        const y = Math.min(92, Math.max(8, ((e.clientY - rect.top) / rect.height) * 100));
+        const r = await SSS.addSticker(chosen, x, y);
+        if (r.ok) { lastKey = null; renderWall(); }
+        else UI.toast(r.error, false);
+      });
+
+      await renderWall();
+      // keep the wall fresh while lots of students decorate at once
+      setInterval(renderWall, 5000);
     })();
   </script>
 </body>

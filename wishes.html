@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('sss_theme') || 'light';</script>
+  <title>Wishlist — Swap, Share, Sustain</title>
+  <link rel="icon" type="image/png" href="img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-head">
+      <span class="eyebrow">wish upon a swap</span>
+      <h1>The wishlist</h1>
+      <p class="page-sub">What do you need? Post it here — someone at school probably has one gathering dust.</p>
+    </div>
+
+    <div class="grid-wrap">
+      <form class="wish-form" id="wish-form">
+        <input id="wish-title" maxlength="80" placeholder="I'm looking for… e.g. a Grade 10 chemistry textbook" aria-label="What are you looking for?">
+        <select id="wish-category" aria-label="Category">
+          <option value="" disabled selected>Category</option>
+        </select>
+        <button class="btn" type="submit">Post wish</button>
+      </form>
+      <p class="form-error" id="wish-error" role="alert"></p>
+
+      <p class="result-count" id="wish-count" style="padding:0 0 8px"></p>
+      <div id="wish-list"></div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (async () => {
+      const me = await UI.init('wishes');
+
+      const catSelect = document.getElementById('wish-category');
+      SSS.CATEGORIES.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.emoji + ' ' + c.label;
+        catSelect.appendChild(opt);
+      });
+
+      async function render() {
+        const wishes = await SSS.listWishes();
+        const count = document.getElementById('wish-count');
+        count.textContent = wishes.length === 1 ? '1 open wish' : wishes.length + ' open wishes';
+        const list = document.getElementById('wish-list');
+        if (wishes.length === 0) {
+          list.innerHTML = `<div class="empty">
+            <p><strong>No wishes yet.</strong></p>
+            <p>Be the first — tell the school what you're looking for.</p>
+          </div>`;
+          return;
+        }
+        list.innerHTML = wishes.map(w => {
+          const cat = UI.catInfo(w.category);
+          const isMine = me && w.userId === me.id;
+          const canRemove = isMine || (me && me.isAdmin);
+          return `
+            <div class="row-item">
+              <div class="wish-thumb ph-${cat.id}">${cat.emoji}</div>
+              <div class="row-body">
+                <span style="font-weight:700">${UI.esc(w.title)}</span>
+                <div class="row-sub">${UI.esc(w.owner ? w.owner.name : 'A student')} · ${UI.esc(w.owner ? w.owner.grade : '')} · ${UI.timeAgo(w.createdAt)}</div>
+              </div>
+              <div class="row-actions">
+                ${isMine
+                  ? `<button class="btn btn-small" data-found="${UI.esc(w.id)}">Found it ✓</button>`
+                  : (me ? `<a class="btn btn-outline btn-small" href="upload.html?title=${encodeURIComponent(w.title)}">I have this →</a>` : '')}
+                ${canRemove ? `<button class="btn btn-danger btn-small" data-remove="${UI.esc(w.id)}">Remove</button>` : ''}
+              </div>
+            </div>`;
+        }).join('');
+
+        list.querySelectorAll('[data-found]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const r = await SSS.markWishFound(btn.dataset.found);
+            if (r.ok) { UI.toast('Wish granted! 🎉'); render(); }
+            else UI.toast(r.error, false);
+          });
+        });
+        list.querySelectorAll('[data-remove]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Remove this wish?')) return;
+            const r = await SSS.removeWish(btn.dataset.remove);
+            if (r.ok) { UI.toast('Wish removed.'); render(); }
+            else UI.toast(r.error, false);
+          });
+        });
+      }
+
+      document.getElementById('wish-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        if (!me) {
+          location.href = 'login.html?next=' + encodeURIComponent('wishes.html');
+          return;
+        }
+        const r = await SSS.addWish({
+          title: document.getElementById('wish-title').value,
+          category: document.getElementById('wish-category').value
+        });
+        if (r.ok) {
+          document.getElementById('wish-title').value = '';
+          document.getElementById('wish-error').textContent = '';
+          UI.toast('Wish posted — fingers crossed! ⭐');
+          render();
+        } else {
+          document.getElementById('wish-error').textContent = r.error;
+        }
+      });
+
+      await render();
+    })();
+  </script>
+</body>
+</html>

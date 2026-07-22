@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('sss_theme') || 'light';</script>
   <title>Your profile — Swap, Share, Sustain</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♻️%3C/text%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" href="img/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
@@ -17,6 +18,11 @@
     <div class="profile-head">
       <div class="profile-card" id="profile-card"></div>
     </div>
+
+    <section class="profile-section">
+      <h2>Your badges</h2>
+      <div class="badge-grid" id="badges"></div>
+    </section>
 
     <section class="profile-section">
       <h2>Your items <span class="count-note" id="items-note"></span></h2>
@@ -50,52 +56,118 @@
       return `<span class="badge badge-${status}">${label}</span>`;
     }
 
-    function itemThumb(item) {
-      if (!item) return `<div class="row-thumb ph">❓</div>`;
-      const cat = UI.catInfo(item.category);
-      return item.image
-        ? `<img class="row-thumb" src="${item.image}" alt="">`
-        : `<div class="row-thumb ph ph-${cat.id}">${cat.emoji}</div>`;
-    }
-
     function itemLink(item) {
       return item
         ? `<a href="item.html?id=${encodeURIComponent(item.id)}">${UI.esc(item.title)}</a>`
         : '<em>an item that was removed</em>';
     }
 
-    function contactBox(user, lead) {
+    /* Side-by-side photos of the wanted item and the offered item. */
+    function swapPair(req, wantLabel, offerLabel) {
+      const side = (item, label) => item
+        ? `<a class="pair-side" href="item.html?id=${encodeURIComponent(item.id)}">
+             ${UI.itemThumb(item)}
+             <span><span class="pair-label">${label}</span><span class="pair-title">${UI.esc(item.title)}</span></span>
+           </a>`
+        : `<span class="pair-side">
+             <span class="pair-none">🤲</span>
+             <span><span class="pair-label">${label}</span><span class="pair-title">Nothing — just asking</span></span>
+           </span>`;
+      return `<div class="swap-pair">${side(req.item, wantLabel)}<span class="pair-arrow">⇄</span>${side(req.offered, offerLabel)}</div>`;
+    }
+
+    /* After an accepted swap, each side confirms it happened by
+       rating the other person once. */
+    function rateRow(req, partner) {
+      if (!partner) return '';
+      if (req.myRating) {
+        const face = { 3: '👍', 2: '😐', 1: '👎' }[req.myRating];
+        return `<p class="rep" style="margin-top:10px">You rated this swap ${face} — thanks for confirming!</p>`;
+      }
+      return `<div class="rate-row">
+        <span class="rep">Did the swap happen? Rate ${UI.esc(partner.name)}:</span>
+        <button class="rate-btn" data-rate="3" data-req="${UI.esc(req.id)}" data-target="${UI.esc(partner.id)}" title="Great swap">👍</button>
+        <button class="rate-btn" data-rate="2" data-req="${UI.esc(req.id)}" data-target="${UI.esc(partner.id)}" title="It was okay">😐</button>
+        <button class="rate-btn" data-rate="1" data-req="${UI.esc(req.id)}" data-target="${UI.esc(partner.id)}" title="There was a problem">👎</button>
+      </div>`;
+    }
+
+    function chatButton(req, primary) {
+      return `<a class="btn ${primary ? '' : 'btn-outline '}btn-small" href="chat.html?request=${encodeURIComponent(req.id)}">💬 Chat${req.unread ? ` <span class="notif">${req.unread}</span>` : ''}</a>`;
+    }
+
+    function contactBox(user, lead, req, contact) {
       if (!user) return '';
+      const bits = [UI.esc(user.grade)];
+      if (user.schoolNumber) bits.push('school number <strong>' + UI.esc(user.schoolNumber) + '</strong>');
+      if (contact && contact.phone) bits.push('📞 <strong>' + UI.esc(contact.phone) + '</strong>');
+      if (contact && contact.email) bits.push('✉️ <strong>' + UI.esc(contact.email) + '</strong>');
       return `<div class="contact-box">
         <p class="hand">${UI.esc(lead)}</p>
-        <p><strong>${UI.esc(user.name)}</strong> · ${UI.esc(user.grade)} · school number <strong>${UI.esc(user.schoolNumber)}</strong></p>
-        <p style="color:var(--ink-soft);font-size:.9rem;margin:0">Agree on a time and place at school, check the items together, then swap.</p>
+        <p><strong>${UI.esc(user.name)}</strong> · ${bits.join(' · ')}</p>
+        <p style="color:var(--ink-soft);font-size:.9rem">Plan a time and place in the chat, check the items together, then swap.</p>
+        ${chatButton(req, true)}
       </div>`;
     }
 
     async function render() {
       document.getElementById('profile-card').innerHTML = `
-        <div class="avatar">${UI.esc(me.name.charAt(0).toUpperCase())}</div>
+        <div class="avatar-wrap">
+          ${UI.avatar(me)}
+          <button class="avatar-edit" id="avatar-btn" title="Change your profile picture" type="button">📷</button>
+          <input id="avatar-input" type="file" accept="image/*" hidden>
+        </div>
         <div class="profile-info">
           <h1>${UI.esc(me.name)}</h1>
-          <p class="profile-meta" style="margin:0">${UI.esc(me.grade)} · school number ${UI.esc(me.schoolNumber)} · joined ${UI.timeAgo(me.joinedAt)}</p>
+          <p class="profile-meta" style="margin:0">${UI.esc(me.grade)}${me.schoolNumber ? ' · school number ' + UI.esc(me.schoolNumber) : ''} · joined ${UI.timeAgo(me.joinedAt)}</p>
         </div>
-        <button class="btn btn-outline btn-small" id="logout-btn">Log out</button>`;
+        <button class="btn btn-outline btn-small" id="logout-btn">Log out</button>
+        ${me.banned ? `<p style="width:100%;margin:8px 0 0;padding:10px 14px;background:#FBE9E4;border-radius:10px;color:var(--red);font-weight:600">Your account is muted by the moderators — you can browse, but you can't post, request or chat. Talk to the Swap, Share, Sustain team if you think this is a mistake.</p>` : ''}`;
       document.getElementById('logout-btn').addEventListener('click', async () => {
         await SSS.logOut();
         location.href = 'index.html';
       });
 
+      document.getElementById('avatar-btn').addEventListener('click', () => {
+        document.getElementById('avatar-input').click();
+      });
+      document.getElementById('avatar-input').addEventListener('change', async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const dataUrl = await UI.fileToDataURL(file, 300);
+          const r = await SSS.updateAvatar(dataUrl);
+          if (r.ok) {
+            me.avatarUrl = r.url;
+            UI.toast('Looking good! 📸');
+            render();
+          } else {
+            UI.toast(r.error, false);
+          }
+        } catch (err) {
+          UI.toast(err.message, false);
+        }
+      });
+
       /* ----- my items ----- */
       const mine = await SSS.listItems({ ownerId: me.id, includeSwapped: true });
       const { incoming, sent } = await SSS.myRequests();
+
+      /* phone/email of accepted swap partners (the database only
+         hands these out to the two people involved) */
+      const partnerIds = incoming.filter(r => r.status === 'accepted' && r.sender).map(r => r.sender.id)
+        .concat(sent.filter(r => r.status === 'accepted' && r.item && r.item.owner).map(r => r.item.owner.id));
+      const contactMap = {};
+      await Promise.all([...new Set(partnerIds)].map(async id => {
+        contactMap[id] = await SSS.getContact(id);
+      }));
       document.getElementById('items-note').textContent =
         mine.length === 0 ? '' : '(' + mine.length + ')';
       document.getElementById('my-items').innerHTML = mine.length === 0
         ? `<div class="empty"><p><strong>Your shelf is empty here.</strong></p><p><a href="upload.html">Post your first item</a> — it takes about a minute.</p></div>`
         : mine.map(item => `
             <div class="row-item">
-              ${itemThumb(item)}
+              ${UI.itemThumb(item)}
               <div class="row-body">
                 ${itemLink(item)}
                 <div class="row-sub">${UI.esc(item.condition)} · posted ${UI.timeAgo(item.createdAt)}</div>
@@ -126,17 +198,19 @@
                 <div class="req-head">
                   <div>
                     <div class="req-title">${UI.esc(from ? from.name : 'A student')} wants ${itemLink(req.item)}</div>
-                    <p class="req-sub">${UI.esc(from ? from.grade : '')} · ${UI.timeAgo(req.createdAt)} · offers: ${req.offered ? itemLink(req.offered) : '<em>nothing — just asking</em>'}</p>
+                    <p class="req-sub">${UI.esc(from ? from.grade : '')} · ${UI.timeAgo(req.createdAt)}</p>
                   </div>
                   ${statusBadge(req.status)}
                 </div>
+                ${swapPair(req, 'they want', 'they offer')}
                 ${req.message ? `<p class="req-msg"><span class="hand-label">they wrote:</span>${UI.esc(req.message)}</p>` : ''}
                 ${req.status === 'pending' ? `
                   <div class="req-actions">
                     <button class="btn btn-small" data-accept="${UI.esc(req.id)}">Accept swap</button>
                     <button class="btn btn-outline btn-small" data-decline="${UI.esc(req.id)}">Decline</button>
+                    ${chatButton(req)}
                   </div>` : ''}
-                ${req.status === 'accepted' ? contactBox(from, 'time to meet up! →') : ''}
+                ${req.status === 'accepted' ? contactBox(from, 'time to meet up! →', req, from ? contactMap[from.id] : null) + rateRow(req, from) : ''}
               </div>`;
           }).join('');
 
@@ -169,15 +243,17 @@
                 <div class="req-head">
                   <div>
                     <div class="req-title">You asked for ${itemLink(req.item)}</div>
-                    <p class="req-sub">from ${UI.esc(owner ? owner.name : 'a student')} · ${UI.timeAgo(req.createdAt)} · you offered: ${req.offered ? itemLink(req.offered) : '<em>nothing</em>'}</p>
+                    <p class="req-sub">from ${UI.esc(owner ? owner.name : 'a student')} · ${UI.timeAgo(req.createdAt)}</p>
                   </div>
                   ${statusBadge(req.status)}
                 </div>
+                ${swapPair(req, 'you want', 'you offer')}
                 ${req.status === 'pending' ? `
                   <div class="req-actions">
+                    ${chatButton(req)}
                     <button class="btn btn-outline btn-small" data-cancel="${UI.esc(req.id)}">Cancel request</button>
                   </div>` : ''}
-                ${req.status === 'accepted' ? contactBox(owner, 'they said yes! →') : ''}
+                ${req.status === 'accepted' ? contactBox(owner, 'they said yes! →', req, owner ? contactMap[owner.id] : null) + rateRow(req, owner) : ''}
               </div>`;
           }).join('');
 
@@ -189,6 +265,23 @@
           else { btn.disabled = false; UI.toast(r.error, false); }
         });
       });
+
+      /* ----- swap ratings ----- */
+      document.querySelectorAll('[data-rate]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const r = await SSS.rateSwap(btn.dataset.req, btn.dataset.target, Number(btn.dataset.rate));
+          if (r.ok) { UI.toast('Thanks for confirming the swap! 🙌'); render(); }
+          else UI.toast(r.error, false);
+        });
+      });
+
+      /* ----- badges ----- */
+      const badges = await SSS.myBadges();
+      document.getElementById('badges').innerHTML = badges.map(b => `
+        <div class="badge-card${b.earned ? '' : ' locked'}" title="${UI.esc(b.desc)}">
+          <span class="badge-emoji">${b.emoji}</span>
+          <span><b>${UI.esc(b.label)}</b><span>${UI.esc(b.desc)}</span></span>
+        </div>`).join('');
     }
 
     await render();

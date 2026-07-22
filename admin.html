@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('sss_theme') || 'light';</script>
+  <title>Admin — Swap, Share, Sustain</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" href="img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main id="admin-main">
+    <div class="page-head">
+      <span class="eyebrow">keeping the board safe</span>
+      <h1>🛡️ Admin panel</h1>
+      <p class="page-sub">Review reports, remove bad posts, and manage the word filter. Every action here is enforced by the database — regular accounts can't do any of this.</p>
+    </div>
+
+    <section class="profile-section">
+      <h2>🚩 Reported items <span class="count-note" id="reports-note"></span></h2>
+      <div id="reports"></div>
+    </section>
+
+    <section class="profile-section">
+      <h2>📦 All items <span class="count-note" id="items-note"></span></h2>
+      <input class="search" id="item-search" type="search" placeholder="Search all items…" aria-label="Search items" style="margin-bottom:14px">
+      <div id="all-items"></div>
+    </section>
+
+    <section class="profile-section">
+      <h2>🧑‍🎓 Students <span class="count-note" id="students-note"></span></h2>
+      <div id="students"></div>
+    </section>
+
+    <section class="profile-section">
+      <h2>🚫 Blocked words</h2>
+      <p class="page-sub" style="margin-bottom:14px">Posts, requests and chat messages containing these words are rejected automatically. English words match whole words only; Thai words match anywhere.</p>
+      <form id="word-form" style="display:flex;gap:10px;max-width:420px;margin-bottom:16px">
+        <input id="new-word" placeholder="Add a word to block…" maxlength="40" aria-label="Word to block" style="flex:1;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font:inherit">
+        <button class="btn btn-small" type="submit">Block it</button>
+      </form>
+      <div id="words" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </section>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (async () => {
+      const me = await UI.init('admin');
+      if (!UI.requireLogin(me)) return;
+
+      if (!me.isAdmin) {
+        document.getElementById('admin-main').innerHTML = `
+          <div class="grid-wrap"><div class="empty">
+            <p><strong>Admins only.</strong></p>
+            <p>This page is for the moderators of Swap, Share, Sustain. <a href="browse.html">Back to browsing</a>.</p>
+          </div></div>`;
+        return;
+      }
+
+      let itemQuery = '';
+
+      function studentRow(u, extra) {
+        return `
+          <div class="row-item">
+            ${UI.avatar(u)}
+            <div class="row-body">
+              <span style="font-weight:700">${UI.esc(u.name)}</span>
+              ${u.isAdmin ? '<span class="badge badge-accepted">Admin</span>' : ''}
+              ${u.banned ? '<span class="badge badge-declined">Banned</span>' : ''}
+              <div class="row-sub">${UI.esc(u.grade)}${u.schoolNumber ? ' · school number ' + UI.esc(u.schoolNumber) : ''} · joined ${UI.timeAgo(u.joinedAt)}</div>
+            </div>
+            <div class="row-actions">${extra}</div>
+          </div>`;
+      }
+
+      function banButton(u) {
+        if (u.id === me.id) return '';
+        return u.banned
+          ? `<button class="btn btn-small" data-unban="${UI.esc(u.id)}">Unban</button>`
+          : `<button class="btn btn-danger btn-small" data-ban="${UI.esc(u.id)}">Ban</button>`;
+      }
+
+      async function render() {
+        /* ----- reports, grouped by item ----- */
+        const reports = await SSS.adminListReports();
+        const byItem = new Map();
+        reports.forEach(r => {
+          const key = r.itemId;
+          if (!byItem.has(key)) byItem.set(key, { item: r.item, reports: [] });
+          byItem.get(key).reports.push(r);
+        });
+        document.getElementById('reports-note').textContent =
+          byItem.size === 0 ? '' : '(' + byItem.size + ' to review)';
+        document.getElementById('reports').innerHTML = byItem.size === 0
+          ? `<div class="empty"><p><strong>Nothing reported.</strong></p><p>When a student flags an item, it shows up here.</p></div>`
+          : [...byItem.values()].map(g => `
+              <div class="req">
+                <div class="req-head">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    ${UI.itemThumb(g.item)}
+                    <div>
+                      <div class="req-title">${g.item ? `<a href="item.html?id=${encodeURIComponent(g.item.id)}">${UI.esc(g.item.title)}</a>` : '<em>item already removed</em>'}</div>
+                      <p class="req-sub">${g.item && g.item.owner ? 'posted by ' + UI.esc(g.item.owner.name) + ' (' + UI.esc(g.item.owner.schoolNumber) + ')' : ''} · ${g.reports.length} report${g.reports.length > 1 ? 's' : ''}</p>
+                    </div>
+                  </div>
+                  <span class="badge badge-pending">Needs review</span>
+                </div>
+                ${g.reports.map(r => `<p class="req-msg"><span class="hand-label">${UI.esc(r.reporter ? r.reporter.name : 'a student')} says:</span>${UI.esc(r.reason) || '<em>no reason given</em>'}</p>`).join('')}
+                <div class="req-actions">
+                  ${g.item ? `<button class="btn btn-danger btn-small" data-remove-item="${UI.esc(g.item.id)}">Remove item</button>` : ''}
+                  <button class="btn btn-outline btn-small" data-dismiss="${UI.esc(g.reports[0].itemId)}">Dismiss report${g.reports.length > 1 ? 's' : ''}</button>
+                  ${g.item && g.item.owner && !g.item.owner.banned && g.item.owner.id !== me.id ? `<button class="btn btn-outline btn-small" data-ban="${UI.esc(g.item.owner.id)}">Ban ${UI.esc(g.item.owner.name)}</button>` : ''}
+                </div>
+              </div>`).join('');
+
+        /* ----- all items ----- */
+        const items = await SSS.listItems({ includeSwapped: true, q: itemQuery || undefined });
+        document.getElementById('items-note').textContent = '(' + items.length + ')';
+        document.getElementById('all-items').innerHTML = items.length === 0
+          ? `<div class="empty"><p><strong>No items${itemQuery ? ' match your search' : ''}.</strong></p></div>`
+          : items.map(item => `
+              <div class="row-item">
+                ${UI.itemThumb(item)}
+                <div class="row-body">
+                  <a href="item.html?id=${encodeURIComponent(item.id)}">${UI.esc(item.title)}</a>
+                  <div class="row-sub">${UI.esc(item.owner ? item.owner.name + ' (' + item.owner.schoolNumber + ')' : '?')} · ${UI.esc(item.condition)} · ${UI.timeAgo(item.createdAt)}</div>
+                </div>
+                <span class="badge badge-${item.status}">${item.status === 'available' ? 'Available' : 'Swapped'}</span>
+                <div class="row-actions">
+                  <button class="btn btn-danger btn-small" data-remove-item="${UI.esc(item.id)}">Remove</button>
+                </div>
+              </div>`).join('');
+
+        /* ----- students ----- */
+        const students = await SSS.adminListStudents();
+        document.getElementById('students-note').textContent = '(' + students.length + ')';
+        document.getElementById('students').innerHTML =
+          students.map(u => studentRow(u, banButton(u))).join('');
+
+        /* ----- blocked words ----- */
+        const words = await SSS.adminListWords();
+        document.getElementById('words').innerHTML = words.length === 0
+          ? '<p class="row-sub">No blocked words yet.</p>'
+          : words.map(w => `
+              <span class="chip-btn" style="cursor:default">${UI.esc(w)}
+                <button data-unword="${UI.esc(w)}" title="Stop blocking this word" style="border:0;background:none;cursor:pointer;font-weight:800;color:var(--red);padding:0 0 0 6px">✕</button>
+              </span>`).join('');
+
+        bindActions();
+      }
+
+      function bindActions() {
+        document.querySelectorAll('[data-remove-item]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Remove this item from the board for everyone?')) return;
+            const r = await SSS.removeItem(btn.dataset.removeItem);
+            if (r.ok) { UI.toast('Item removed.'); render(); }
+            else UI.toast(r.error, false);
+          });
+        });
+        document.querySelectorAll('[data-dismiss]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const r = await SSS.adminDismissReports(btn.dataset.dismiss);
+            if (r.ok) { UI.toast('Reports dismissed.'); render(); }
+            else UI.toast(r.error, false);
+          });
+        });
+        document.querySelectorAll('[data-ban]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Ban this student? They can still browse, but cannot post, request or chat.')) return;
+            const r = await SSS.adminSetBanned(btn.dataset.ban, true);
+            if (r.ok) { UI.toast('Student banned.'); render(); }
+            else UI.toast(r.error, false);
+          });
+        });
+        document.querySelectorAll('[data-unban]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const r = await SSS.adminSetBanned(btn.dataset.unban, false);
+            if (r.ok) { UI.toast('Student unbanned.'); render(); }
+            else UI.toast(r.error, false);
+          });
+        });
+        document.querySelectorAll('[data-unword]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const r = await SSS.adminRemoveWord(btn.dataset.unword);
+            if (r.ok) { UI.toast('Word removed from the filter.'); render(); }
+            else UI.toast(r.error, false);
+          });
+        });
+      }
+
+      let debounce;
+      document.getElementById('item-search').addEventListener('input', e => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => { itemQuery = e.target.value.trim(); render(); }, 250);
+      });
+
+      document.getElementById('word-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const input = document.getElementById('new-word');
+        const r = await SSS.adminAddWord(input.value);
+        if (r.ok) { input.value = ''; UI.toast('Word blocked.'); render(); }
+        else UI.toast(r.error, false);
+      });
+
+      await render();
+    })();
+  </script>
+</body>
+</html>

@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('sss_theme') || 'light';</script>
   <title>Log in — Swap, Share, Sustain</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E♻️%3C/text%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" href="img/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Public+Sans:wght@400;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
@@ -17,7 +18,7 @@
     <div class="page-head" style="text-align:center">
       <span class="eyebrow">members only (that's you)</span>
       <h1>Come on in</h1>
-      <p class="page-sub">Log in with your school number, or create an account in seconds.</p>
+      <p class="page-sub">Students, teachers, everyone from our school — log in with your email, or create an account in seconds.</p>
     </div>
 
     <div class="form-card">
@@ -28,8 +29,9 @@
 
       <form id="panel-login" role="tabpanel" aria-labelledby="tab-login">
         <div class="field">
-          <label for="login-number">School number</label>
-          <input id="login-number" name="schoolNumber" inputmode="numeric" autocomplete="username" placeholder="e.g. 10001" required>
+          <label for="login-id">Email</label>
+          <input id="login-id" name="email" autocomplete="username" placeholder="you@example.com" required>
+          <p class="hint">Made your account before email login? Your school number still works here too.</p>
         </div>
         <div class="field">
           <label for="login-password">Password</label>
@@ -43,18 +45,17 @@
 
       <form id="panel-signup" role="tabpanel" aria-labelledby="tab-signup" hidden>
         <div class="field">
-          <label for="signup-number">School number</label>
-          <input id="signup-number" name="schoolNumber" inputmode="numeric" autocomplete="username" placeholder="e.g. 12345" required>
-          <p class="hint">The student ID number the school gave you — it proves you're one of us.</p>
+          <label for="signup-email">Email</label>
+          <input id="signup-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
         </div>
         <div class="field">
           <label for="signup-name">Name or nickname</label>
-          <input id="signup-name" name="name" autocomplete="name" placeholder="What should other students call you?" required>
+          <input id="signup-name" name="name" autocomplete="name" placeholder="What should people call you?" required>
         </div>
         <div class="field">
-          <label for="signup-grade">Grade</label>
+          <label for="signup-grade">I am…</label>
           <select id="signup-grade" name="grade" required>
-            <option value="" disabled selected>Choose your grade</option>
+            <option value="" disabled selected>Choose your grade or role</option>
           </select>
         </div>
         <div class="field">
@@ -120,7 +121,7 @@
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
         const r = await busy(btn, () => SSS.logIn(
-          document.getElementById('login-number').value,
+          document.getElementById('login-id').value,
           document.getElementById('login-password').value
         ));
         if (r.ok) location.href = next;
@@ -131,7 +132,7 @@
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
         const r = await busy(btn, () => SSS.signUp({
-          schoolNumber: document.getElementById('signup-number').value,
+          email: document.getElementById('signup-email').value,
           name: document.getElementById('signup-name').value,
           grade: document.getElementById('signup-grade').value,
           password: document.getElementById('signup-password').value

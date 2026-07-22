@@ -30,6 +30,15 @@ const UI = (() => {
     const me = await SSS.currentUser();
     header(active, me);
     footer();
+    if (me) {
+      // fetch the notification badge after first paint so pages feel fast
+      SSS.notificationCounts().then(n => {
+        const slot = document.getElementById('nav-notif');
+        if (slot && n.total > 0) {
+          slot.innerHTML = `<span class="notif" title="${n.requests} waiting request(s), ${n.messages} unread message(s)">${n.total}</span>`;
+        }
+      });
+    }
     return me;
   }
 
@@ -39,17 +48,79 @@ const UI = (() => {
     el.innerHTML = `
       <div class="nav-inner">
         <a class="logo" href="index.html">
-          <span class="logo-badge">S³</span>
+          <img class="logo-badge" src="img/logo.png" alt="Swap, Share, Sustain logo">
           <span class="logo-word">Swap · Share · Sustain</span>
         </a>
         <nav class="nav-links" aria-label="Main">
           <a href="browse.html" ${active === 'browse' ? 'aria-current="page"' : ''}>Browse</a>
+          <a href="wishes.html" ${active === 'wishes' ? 'aria-current="page"' : ''}>Wishlist</a>
           <a href="upload.html" ${active === 'upload' ? 'aria-current="page"' : ''}>Post an item</a>
+          ${me && me.isAdmin ? `<a href="admin.html" ${active === 'admin' ? 'aria-current="page"' : ''}>🛡️ Admin</a>` : ''}
           ${me
-            ? `<a class="nav-user" href="profile.html" ${active === 'profile' ? 'aria-current="page"' : ''}>👤 ${esc(me.name)}</a>`
+            ? `<a class="nav-user" href="profile.html" ${active === 'profile' ? 'aria-current="page"' : ''}>${avatar(me, 'nav-avatar')} ${esc(me.name)}<span id="nav-notif"></span></a>`
             : `<a class="btn btn-small" href="login.html">Log in</a>`}
+          <button class="theme-btn" id="theme-btn" type="button" title="Switch between day and night">${document.documentElement.dataset.theme === 'dark' ? '☀️' : '🌙'}</button>
         </nav>
       </div>`;
+    el.querySelector('#theme-btn').addEventListener('click', () => {
+      const root = document.documentElement;
+      const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+      root.dataset.theme = next;
+      localStorage.setItem('sss_theme', next);
+      el.querySelector('#theme-btn').textContent = next === 'dark' ? '☀️' : '🌙';
+    });
+  }
+
+  /* Small square thumbnail for an item (photo or category placeholder). */
+  function itemThumb(item) {
+    if (!item) return `<div class="row-thumb ph">❓</div>`;
+    const cat = catInfo(item.category);
+    return item.image
+      ? `<img class="row-thumb" src="${esc(item.image)}" alt="">`
+      : `<div class="row-thumb ph ph-${cat.id}">${cat.emoji}</div>`;
+  }
+
+  /* Scroll-triggered reveals: children of [data-reveal] containers
+     slide in one after another as they enter the viewport. Does
+     nothing when the visitor prefers reduced motion or lacks
+     IntersectionObserver — content just stays visible. A safety
+     timeout guarantees nothing ever stays stuck hidden. */
+  function reveals() {
+    if (!window.matchMedia('(prefers-reduced-motion: no-preference)').matches) return;
+    if (!('IntersectionObserver' in window)) return;
+
+    const kids = [];
+    document.querySelectorAll('[data-reveal]').forEach(el => {
+      [...el.children].forEach(c => { c.classList.add('reveal'); kids.push(c); });
+    });
+    if (kids.length === 0) return;
+
+    const show = (el) => {
+      [...el.children].forEach((child, i) => {
+        child.style.transitionDelay = Math.min(i * 70, 490) + 'ms';
+        child.classList.add('in');
+      });
+    };
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        show(entry.target);
+        io.unobserve(entry.target);
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('[data-reveal]').forEach(el => io.observe(el));
+
+    // safety net: never let content stay invisible if the observer
+    // somehow doesn't fire (odd browsers, background tabs, etc.)
+    setTimeout(() => kids.forEach(c => c.classList.add('in')), 2600);
+  }
+
+  /* Round profile picture, or the student's initial if they have none. */
+  function avatar(user, cls) {
+    cls = cls || 'avatar';
+    return user && user.avatarUrl
+      ? `<img class="${cls} avatar-img" src="${esc(user.avatarUrl)}" alt="">`
+      : `<div class="${cls}">${esc(((user && user.name) || '?').charAt(0).toUpperCase())}</div>`;
   }
 
   function footer() {
@@ -110,14 +181,14 @@ const UI = (() => {
   }
 
   /* Reads a picked photo, scales it down and returns a JPEG data URL
-     ready to upload. */
-  function fileToDataURL(file) {
+     ready to upload. maxSize defaults to 900px (use less for avatars). */
+  function fileToDataURL(file, maxSize) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
         const img = new Image();
         img.onload = () => {
-          const MAX = 900;
+          const MAX = maxSize || 900;
           let w = img.width, h = img.height;
           if (w > MAX || h > MAX) {
             const k = Math.min(MAX / w, MAX / h);
@@ -138,5 +209,5 @@ const UI = (() => {
     });
   }
 
-  return { esc, catInfo, timeAgo, qs, init, header, footer, toast, requireLogin, cardImage, itemCard, fileToDataURL };
+  return { esc, catInfo, timeAgo, qs, init, header, footer, toast, requireLogin, cardImage, itemCard, itemThumb, avatar, fileToDataURL, reveals };
 })();
