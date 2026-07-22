@@ -81,6 +81,65 @@ const UI = (() => {
       : `<div class="row-thumb ph ph-${cat.id}">${cat.emoji}</div>`;
   }
 
+  /* Erases a picture's plain background: samples the border colour,
+     then clears every matching pixel connected to the edges. White
+     (or any solid colour) around the subject vanishes; the same
+     colour inside the subject is kept. Returns a transparent PNG. */
+  function removeBackground(dataUrl, tolerance) {
+    const tol = tolerance || 32;
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, c.width, c.height);
+        const px = data.data, W = c.width, H = c.height;
+
+        // average the border pixels to find the background colour
+        let r = 0, g = 0, b = 0, n = 0;
+        const sample = (x, y) => {
+          const i = (y * W + x) * 4;
+          r += px[i]; g += px[i + 1]; b += px[i + 2]; n++;
+        };
+        const stepX = Math.max(1, W >> 5), stepY = Math.max(1, H >> 5);
+        for (let x = 0; x < W; x += stepX) { sample(x, 0); sample(x, H - 1); }
+        for (let y = 0; y < H; y += stepY) { sample(0, y); sample(W - 1, y); }
+        r /= n; g /= n; b /= n;
+
+        const matches = (i) => {
+          const dr = px[i] - r, dg = px[i + 1] - g, db = px[i + 2] - b;
+          return (dr * dr + dg * dg + db * db) < tol * tol * 3;
+        };
+
+        // flood-fill inwards from every edge pixel
+        const seen = new Uint8Array(W * H);
+        const stack = [];
+        for (let x = 0; x < W; x++) { stack.push(x, x + (H - 1) * W); }
+        for (let y = 0; y < H; y++) { stack.push(y * W, W - 1 + y * W); }
+        while (stack.length) {
+          const p = stack.pop();
+          if (seen[p]) continue;
+          seen[p] = 1;
+          const i = p * 4;
+          if (!matches(i)) continue;
+          px[i + 3] = 0;
+          const x = p % W, y = (p / W) | 0;
+          if (x > 0) stack.push(p - 1);
+          if (x < W - 1) stack.push(p + 1);
+          if (y > 0) stack.push(p - W);
+          if (y < H - 1) stack.push(p + W);
+        }
+        ctx.putImageData(data, 0, 0);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error('Could not process that image.'));
+      img.src = dataUrl;
+    });
+  }
+
   /* ---------- the scene: admin-editable background pictures ----------
      Everyone sees the pictures; admins get a 🎨 Edit scene button to
      add, drag, resize and remove them live — saved for the whole
@@ -160,7 +219,11 @@ const UI = (() => {
       e.target.value = '';
       if (!file) return;
       try {
-        const dataUrl = await fileToDataURL(file, 800);
+        let dataUrl = await fileToDataURL(file, 800);
+        if (confirm('Remove the plain background from this picture so it blends into the sky?\n\nOK = remove background (best when the background is one solid colour)\nCancel = keep the picture exactly as it is')) {
+          toast('Removing background…');
+          dataUrl = await removeBackground(dataUrl);
+        }
         const up = await SSS.uploadDecorImage(dataUrl);
         if (!up.ok) { toast(up.error, false); return; }
         const r = await SSS.addDecoration({
@@ -376,5 +439,5 @@ const UI = (() => {
     });
   }
 
-  return { esc, catInfo, timeAgo, qs, init, header, footer, toast, requireLogin, cardImage, itemCard, itemThumb, avatar, fileToDataURL, reveals };
+  return { esc, catInfo, timeAgo, qs, init, header, footer, toast, requireLogin, cardImage, itemCard, itemThumb, avatar, fileToDataURL, removeBackground, reveals };
 })();
