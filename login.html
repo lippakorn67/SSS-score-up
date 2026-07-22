@@ -39,6 +39,9 @@
         </div>
         <p class="form-error" id="login-error" role="alert"></p>
         <button class="btn form-full" type="submit">Log in</button>
+        <p style="text-align:center;margin:12px 0 0">
+          <a href="#" id="forgot-link" style="font-size:.9rem;font-weight:600">Forgot your password?</a>
+        </p>
         <div class="divider">just looking around?</div>
         <button class="btn btn-outline form-full" type="button" id="demo-btn">Try the demo account (Mint)</button>
       </form>
@@ -139,6 +142,15 @@
         }));
         if (r.ok) location.href = next;
         else document.getElementById('signup-error').textContent = r.error;
+      });
+
+      document.getElementById('forgot-link').addEventListener('click', async e => {
+        e.preventDefault();
+        const email = prompt('Enter the email address on your account. We\'ll send you a link to reset your password.\n\n(Accounts made with a school number instead of an email can\'t reset this way — ask an admin for help.)');
+        if (email === null) return;
+        const r = await SSS.requestPasswordReset(email);
+        if (r.ok) UI.toast('If that email has an account, a reset link is on its way. 📧');
+        else UI.toast(r.error, false);
       });
 
       document.getElementById('demo-btn').addEventListener('click', async e => {

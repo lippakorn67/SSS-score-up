@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('sss_theme') || 'light';</script>
+  <title>Reset password — Swap, Share, Sustain</title>
+  <link rel="icon" type="image/png" href="img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-head" style="text-align:center">
+      <span class="eyebrow">almost back in</span>
+      <h1>Set a new password</h1>
+      <p class="page-sub">Choose a new password for your account.</p>
+    </div>
+
+    <div class="form-card">
+      <div id="reset-body">
+        <p style="color:var(--ink-soft)">Checking your reset link…</p>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (async () => {
+      await UI.init();
+      const body = document.getElementById('reset-body');
+
+      // Supabase turns the recovery link into a session automatically.
+      // Give it a moment, then confirm we have one.
+      await new Promise(r => setTimeout(r, 600));
+      const me = await SSS.currentUser();
+
+      if (!me) {
+        body.innerHTML = `
+          <p class="form-error" style="min-height:auto">This reset link is invalid or has expired.</p>
+          <p style="color:var(--ink-soft)">Head back to the login page and request a new one.</p>
+          <a class="btn form-full" href="login.html">Back to log in</a>`;
+        return;
+      }
+
+      body.innerHTML = `
+        <form id="reset-form">
+          <div class="field">
+            <label for="new-pass">New password</label>
+            <input id="new-pass" type="password" autocomplete="new-password" required>
+            <p class="hint">At least 6 characters.</p>
+          </div>
+          <p class="form-error" id="reset-error" role="alert"></p>
+          <button class="btn form-full" type="submit">Save new password</button>
+        </form>`;
+
+      document.getElementById('reset-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        const r = await SSS.updatePassword(document.getElementById('new-pass').value);
+        if (r.ok) {
+          UI.toast('Password updated — you\'re logged in! 🎉');
+          setTimeout(() => location.href = 'profile.html', 900);
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Save new password';
+          document.getElementById('reset-error').textContent = r.error;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

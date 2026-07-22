@@ -123,11 +123,12 @@
           </div>
           <p class="detail-desc">${UI.esc(item.description) || '<em>No description — ask the owner about it.</em>'}</p>
           <div class="owner-card">
-            ${UI.avatar(owner)}
+            ${owner ? `<a href="user.html?id=${encodeURIComponent(owner.id)}" style="text-decoration:none;color:inherit">${UI.avatar(owner)}</a>` : UI.avatar(owner)}
             <div>
-              <div class="owner-name">${UI.esc(owner ? owner.name : 'A student')}</div>
+              <div class="owner-name">${owner ? `<a href="user.html?id=${encodeURIComponent(owner.id)}" style="color:inherit;text-decoration:none">${UI.esc(owner.name)}</a>` : 'A student'}</div>
               <div class="owner-meta">${UI.esc(owner ? owner.grade : '')}${owner ? ' · joined ' + UI.timeAgo(owner.joinedAt) : ''}</div>
               ${rep.count ? `<div class="rep">👍 ${rep.positive}% positive · ${rep.count} rated swap${rep.count > 1 ? 's' : ''}</div>` : ''}
+              ${owner && !isOwner ? `<a href="user.html?id=${encodeURIComponent(owner.id)}" style="font-size:.85rem;font-weight:600">View profile →</a>` : ''}
             </div>
             ${me && !isOwner ? `<button id="report-btn" title="Report this item to the moderators" style="margin-left:auto;border:0;background:none;cursor:pointer;font:inherit;font-size:.85rem;font-weight:600;color:var(--ink-soft)">🚩 Report</button>` : ''}
           </div>

@@ -79,7 +79,7 @@
           <div class="chat-head">
             ${UI.avatar(partner)}
             <div>
-              <div class="chat-partner">${UI.esc(partner ? partner.name : 'A student')}</div>
+              <div class="chat-partner">${partner ? `<a href="user.html?id=${encodeURIComponent(partner.id)}" style="color:inherit;text-decoration:none">${UI.esc(partner.name)}</a>` : 'A student'}</div>
               <div class="chat-partner-meta">${UI.esc(partner ? partner.grade : '')}${partner && partner.schoolNumber ? ' · school number ' + UI.esc(partner.schoolNumber) : ''}</div>
             </div>
             <span class="badge badge-${req.status}" style="margin-left:auto">${statusLabel}</span>
@@ -93,6 +93,8 @@
           </div>
           <div class="chat-thread" id="thread"></div>
           <form class="chat-input" id="chat-form">
+            <label class="chat-pic-btn" for="chat-pic" title="Send a picture">📷</label>
+            <input id="chat-pic" type="file" accept="image/*" hidden>
             <textarea id="chat-text" maxlength="500" placeholder="Plan where and when to meet at school…" aria-label="Message"></textarea>
             <button class="btn" type="submit">Send</button>
           </form>
@@ -108,9 +110,14 @@
         const key = msgs.map(m => m.id).join(',');
         if (key === lastKey) return;
         lastKey = key;
+        const isImage = (b) => /^https?:\/\/\S+\.(png|jpe?g|gif|webp)(\?\S*)?$/i.test(b.trim());
         thread.innerHTML = msgs.length
-          ? msgs.map(m => `
-              <div class="msg ${m.senderId === me.id ? 'msg-mine' : 'msg-theirs'}">${UI.esc(m.body)}<span class="msg-time">${UI.timeAgo(m.createdAt)}</span></div>`).join('')
+          ? msgs.map(m => {
+              const content = isImage(m.body)
+                ? `<a href="${UI.esc(m.body.trim())}" target="_blank" rel="noopener"><img class="msg-img" src="${UI.esc(m.body.trim())}" alt="picture"></a>`
+                : UI.esc(m.body);
+              return `<div class="msg ${m.senderId === me.id ? 'msg-mine' : 'msg-theirs'}">${content}<span class="msg-time">${UI.timeAgo(m.createdAt)}</span></div>`;
+            }).join('')
           : `<p class="chat-empty">say hi and plan the swap 👋</p>`;
         thread.scrollTop = thread.scrollHeight;
         if (msgs.some(m => m.senderId !== me.id && !m.readAt)) {
@@ -131,6 +138,23 @@
         }
         await refresh();
         textarea.focus();
+      });
+
+      document.getElementById('chat-pic').addEventListener('change', async e => {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        UI.toast('Sending picture…');
+        try {
+          const dataUrl = await UI.fileToDataURL(file, 900);
+          const up = await SSS.uploadImage(dataUrl, 'chat');
+          if (!up.ok) { UI.toast(up.error, false); return; }
+          const r = await SSS.sendMessage(req.id, up.url);
+          if (!r.ok) { UI.toast(r.error, false); return; }
+          await refresh();
+        } catch (err) {
+          UI.toast(err.message, false);
+        }
       });
 
       // Enter sends, Shift+Enter makes a new line

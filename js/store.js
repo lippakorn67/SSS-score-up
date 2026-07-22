@@ -98,6 +98,13 @@ const SSS = (() => {
     return cachedProfile;
   }
 
+  /* Any student's public profile (name, grade, avatar, joined). */
+  async function getUser(id) {
+    if (!id) return null;
+    const { data } = await db.from('profiles').select('*').eq('id', id).maybeSingle();
+    return rowToUser(data);
+  }
+
   async function signUp(data) {
     const email = String(data.email || '').trim().toLowerCase();
     const name = String(data.name || '').trim();
@@ -187,9 +194,30 @@ const SSS = (() => {
     return rowToItem(data);
   }
 
+  // Anti-spam posting limits (also enforced by the database).
+  const POST_LIMIT_DAY = 6;
+  const POST_LIMIT_WEEK = 20;
+
+  async function postingCooldown(userId) {
+    const since = (hours) => new Date(Date.now() - hours * 3600e3).toISOString();
+    const [day, week] = await Promise.all([
+      db.from('items').select('id', { count: 'exact', head: true }).eq('owner_id', userId).gte('created_at', since(24)),
+      db.from('items').select('id', { count: 'exact', head: true }).eq('owner_id', userId).gte('created_at', since(24 * 7))
+    ]);
+    if ((day.count || 0) >= POST_LIMIT_DAY) {
+      return `You've posted ${POST_LIMIT_DAY} items today — that's the daily limit. Come back tomorrow to post more. 🌱`;
+    }
+    if ((week.count || 0) >= POST_LIMIT_WEEK) {
+      return `You've posted ${POST_LIMIT_WEEK} items this week — that's the weekly limit. Give others a turn and come back next week. 🌱`;
+    }
+    return null;
+  }
+
   async function addItem(data) {
     const me = await currentUser();
     if (!me) return { ok: false, error: 'Log in to post an item.' };
+    const cooldown = await postingCooldown(me.id);
+    if (cooldown) return { ok: false, error: cooldown };
     const title = String(data.title || '').trim();
     if (title.length < 3) return { ok: false, error: 'Give your item a short title (at least 3 characters).' };
     if (!CATEGORIES.some(c => c.id === data.category)) return { ok: false, error: 'Pick a category.' };
@@ -568,14 +596,36 @@ const SSS = (() => {
     return data.map(rowToDecoration);
   }
 
-  async function uploadDecorImage(dataUrl) {
+  async function uploadImage(dataUrl, folder) {
     const blob = dataURLtoBlob(dataUrl);
     const ext = blob.type === 'image/png' ? '.png' : '.jpg';
-    const path = 'decor/' + Date.now() + ext;
+    const path = (folder || 'misc') + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + ext;
     const { error } = await db.storage.from('item-photos')
       .upload(path, blob, { contentType: blob.type });
     if (error) return { ok: false, error: 'Upload failed: ' + error.message };
     return { ok: true, url: db.storage.from('item-photos').getPublicUrl(path).data.publicUrl };
+  }
+  const uploadDecorImage = (dataUrl) => uploadImage(dataUrl, 'decor');
+
+  /* ---------- password reset (email verification) ---------- */
+
+  async function requestPasswordReset(email) {
+    const addr = String(email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) {
+      return { ok: false, error: 'Enter the email address on your account.' };
+    }
+    const redirectTo = location.origin + location.pathname.replace(/[^/]*$/, '') + 'reset.html';
+    const { error } = await db.auth.resetPasswordForEmail(addr, { redirectTo });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  }
+
+  async function updatePassword(newPassword) {
+    if (String(newPassword || '').length < 6) return { ok: false, error: 'Password needs at least 6 characters.' };
+    const { error } = await db.auth.updateUser({ password: newPassword });
+    if (error) return { ok: false, error: error.message };
+    cachedProfile = null;
+    return { ok: true };
   }
 
   async function addDecoration(deco) {
@@ -692,12 +742,13 @@ const SSS = (() => {
 
   return {
     CATEGORIES, CONDITIONS, GRADES,
-    signUp, logIn, logOut, currentUser, getContact,
+    signUp, logIn, logOut, currentUser, getContact, getUser,
+    requestPasswordReset, updatePassword,
     listItems, getItem, addItem, removeItem,
     createRequest, getRequest, myRequests, pendingRequestFor,
     acceptRequest, declineRequest,
     listMessages, sendMessage, markThreadRead, notificationCounts,
-    updateAvatar,
+    updateAvatar, uploadImage,
     listDecorations, uploadDecorImage, addDecoration, updateDecoration, removeDecoration,
     listWishes, addWish, markWishFound, removeWish,
     rateSwap, ratingSummary, myBadges,

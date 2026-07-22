@@ -81,12 +81,13 @@ const UI = (() => {
       : `<div class="row-thumb ph ph-${cat.id}">${cat.emoji}</div>`;
   }
 
-  /* Erases a picture's plain background: samples the border colour,
-     then clears every matching pixel connected to the edges. White
-     (or any solid colour) around the subject vanishes; the same
-     colour inside the subject is kept. Returns a transparent PNG. */
-  function removeBackground(dataUrl, tolerance) {
-    const tol = tolerance || 32;
+  /* Erases a picture's plain background. Samples the border colour and
+     its spread to pick the tolerance automatically, flood-fills inward
+     from the edges, and feathers the boundary (partial transparency)
+     for a soft, halo-free cut. The same colour *inside* the subject is
+     kept because only pixels connected to the edge are cleared.
+     Returns a transparent PNG. */
+  function removeBackground(dataUrl) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
@@ -96,26 +97,38 @@ const UI = (() => {
         const ctx = c.getContext('2d');
         ctx.drawImage(img, 0, 0);
         const data = ctx.getImageData(0, 0, c.width, c.height);
-        const px = data.data, W = c.width, H = c.height;
+        const px = data.data, W = c.width, H = c.height, N = W * H;
 
-        // average the border pixels to find the background colour
+        // sample the border to learn the background colour + how varied it is
         let r = 0, g = 0, b = 0, n = 0;
-        const sample = (x, y) => {
+        const border = [];
+        const take = (x, y) => {
           const i = (y * W + x) * 4;
           r += px[i]; g += px[i + 1]; b += px[i + 2]; n++;
+          border.push(i);
         };
-        const stepX = Math.max(1, W >> 5), stepY = Math.max(1, H >> 5);
-        for (let x = 0; x < W; x += stepX) { sample(x, 0); sample(x, H - 1); }
-        for (let y = 0; y < H; y += stepY) { sample(0, y); sample(W - 1, y); }
+        const sx = Math.max(1, W >> 6), sy = Math.max(1, H >> 6);
+        for (let x = 0; x < W; x += sx) { take(x, 0); take(x, H - 1); }
+        for (let y = 0; y < H; y += sy) { take(0, y); take(W - 1, y); }
         r /= n; g /= n; b /= n;
 
-        const matches = (i) => {
+        // spread of border colours → adaptive tolerance
+        let variance = 0;
+        for (const i of border) {
           const dr = px[i] - r, dg = px[i + 1] - g, db = px[i + 2] - b;
-          return (dr * dr + dg * dg + db * db) < tol * tol * 3;
+          variance += dr * dr + dg * dg + db * db;
+        }
+        const spread = Math.sqrt(variance / border.length);
+        const hard = Math.max(30, spread * 1.4 + 18);   // fully background
+        const soft = hard + Math.max(45, spread * 2 + 40); // feather edge
+        const dist = (i) => {
+          const dr = px[i] - r, dg = px[i + 1] - g, db = px[i + 2] - b;
+          return Math.sqrt(dr * dr + dg * dg + db * db);
         };
 
-        // flood-fill inwards from every edge pixel
-        const seen = new Uint8Array(W * H);
+        // flood-fill from every edge pixel through "background" pixels,
+        // feathering the transition band
+        const seen = new Uint8Array(N);
         const stack = [];
         for (let x = 0; x < W; x++) { stack.push(x, x + (H - 1) * W); }
         for (let y = 0; y < H; y++) { stack.push(y * W, W - 1 + y * W); }
@@ -124,8 +137,17 @@ const UI = (() => {
           if (seen[p]) continue;
           seen[p] = 1;
           const i = p * 4;
-          if (!matches(i)) continue;
-          px[i + 3] = 0;
+          const d = dist(i);
+          if (d >= soft) continue;               // clearly the subject — stop
+          if (d <= hard) {
+            px[i + 3] = 0;                        // clearly background — erase
+          } else {
+            // feather: fade alpha across the transition, and de-fringe the
+            // colour a touch so no background halo remains
+            const t = (d - hard) / (soft - hard);
+            px[i + 3] = Math.round(px[i + 3] * t);
+            continue;                            // don't spread past the edge
+          }
           const x = p % W, y = (p / W) | 0;
           if (x > 0) stack.push(p - 1);
           if (x < W - 1) stack.push(p + 1);

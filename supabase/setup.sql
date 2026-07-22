@@ -129,7 +129,15 @@ create policy "items are readable by everyone"
 
 drop policy if exists "logged-in students can post items" on public.items;
 create policy "logged-in students can post items"
-  on public.items for insert with check (auth.uid() = owner_id and not public.is_banned());
+  on public.items for insert with check (
+    auth.uid() = owner_id
+    and not public.is_banned()
+    -- anti-spam cooldown: at most 6 posts/day and 20 posts/week
+    and (select count(*) from public.items i
+         where i.owner_id = auth.uid() and i.created_at > now() - interval '24 hours') < 6
+    and (select count(*) from public.items i
+         where i.owner_id = auth.uid() and i.created_at > now() - interval '7 days') < 20
+  );
 
 drop policy if exists "owners can update their items" on public.items;
 create policy "owners can update their items"
