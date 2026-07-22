@@ -126,28 +126,36 @@ const UI = (() => {
           return Math.sqrt(dr * dr + dg * dg + db * db);
         };
 
-        // flood-fill from every edge pixel through "background" pixels,
-        // feathering the transition band
+        // flood-fill from every edge pixel; propagate through the whole
+        // background AND the feather band so anti-aliased edges fade
+        // smoothly (not just a single ring)
         const seen = new Uint8Array(N);
         const stack = [];
         for (let x = 0; x < W; x++) { stack.push(x, x + (H - 1) * W); }
         for (let y = 0; y < H; y++) { stack.push(y * W, W - 1 + y * W); }
+        const clamp = (v) => v < 0 ? 0 : v > 255 ? 255 : v;
         while (stack.length) {
           const p = stack.pop();
           if (seen[p]) continue;
           seen[p] = 1;
           const i = p * 4;
           const d = dist(i);
-          if (d >= soft) continue;               // clearly the subject — stop
+          if (d >= soft) continue;               // the subject — stop here
           if (d <= hard) {
-            px[i + 3] = 0;                        // clearly background — erase
+            px[i + 3] = 0;                        // solid background — erase
           } else {
-            // feather: fade alpha across the transition, and de-fringe the
-            // colour a touch so no background halo remains
-            const t = (d - hard) / (soft - hard);
-            px[i + 3] = Math.round(px[i + 3] * t);
-            continue;                            // don't spread past the edge
+            // feather band: smoothstep alpha, and de-fringe the colour so
+            // no background halo is left tinting the edge
+            let a = (d - hard) / (soft - hard);
+            a = a * a * (3 - 2 * a);             // smoothstep
+            if (a > 0.12) {
+              px[i]     = clamp((px[i]     - (1 - a) * r) / a);
+              px[i + 1] = clamp((px[i + 1] - (1 - a) * g) / a);
+              px[i + 2] = clamp((px[i + 2] - (1 - a) * b) / a);
+            }
+            px[i + 3] = Math.round(px[i + 3] * a);
           }
+          // keep spreading through background + feather pixels (d < soft)
           const x = p % W, y = (p / W) | 0;
           if (x > 0) stack.push(p - 1);
           if (x < W - 1) stack.push(p + 1);
